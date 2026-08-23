@@ -411,16 +411,6 @@ export default function StoreProducts() {
         </p>
       </header>
 
-
-      {/* TEMP DIAG: shows current editId + whether drawer will render.
-           Remove once verified. */}
-      <div style={{
-        padding: '0.6rem 0.9rem', background: '#fef4d9', color: '#7a5b00',
-        border: '1px solid #F9C610', borderRadius: 6, marginBottom: '0.8rem',
-        fontFamily: 'ui-monospace, monospace', fontSize: '0.8rem',
-      }}>
-        DIAG: editId={String(editId)} · rows.length={rows.length} · editingProduct={editingProduct ? editingProduct.name : 'null'}
-      </div>
       {editingProduct && (
         <div className="mas-edit-drawer" id="mas-store-editor">
           <h3>Edit — {editingProduct.name}</h3>
@@ -476,11 +466,6 @@ export default function StoreProducts() {
           </div>
         </div>
       )}
-
-      <div className="mas-catalog-head">
-        <h2><Icon name="flag" /> Product catalogue</h2>
-        <p>Items you sell (goggles, caps, swim diapers, badges, teaching materials). The photo and details show in the buyer store so instructors and centres pick the right item. Drag the handle on a card to re-order. Shared across all buyers; price stays editable per sale.</p>
-      </div>
 
       {msg && (
         <div className={`mas-catalog-msg ${msg.ok ? 'is-good' : 'is-bad'}`}>{msg.text}</div>
