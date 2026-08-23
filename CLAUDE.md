@@ -102,6 +102,7 @@ src/
            PORTAL (role-gated): Dashboard, AccountSettings (/account), ClaimCandidate,
            MyInvoices, CentreAdmin, RegisterCandidate, ClaimSlips, CreateSession,
            InviteExaminer, ExaminerGrading, Invitations, AssessmentsOversight,
+           PaymentVouchers (/billing/vouchers — money OUT),
            ExaminerRegistry, Certificates, Accounts, CentreBilling, Store, StoreAdmin,
            InstructorOnboarding, InstructorBlacklist, CourseManagement,
            CentreManagement, Enquiries, RegisterCentre, PartnerApplications,
@@ -169,7 +170,10 @@ public surfaces that leak candidate identity.
 
 Roles (`membership_role` enum): board_member, coaching_panel, chairperson,
 chief_examiner, examiner_trainer, examiner, instructor, partner_center_admin,
-system_admin, instructor_trainer. `has_role()` has a `system_admin` wildcard.
+system_admin, instructor_trainer, finance_officer, finance_approver.
+`has_role()` has a `system_admin` wildcard. Money out uses separation of duties:
+finance_officer prepares and pays a voucher, finance_approver (or chairperson)
+approves it — never the same person on both legs.
 Certificates are append-only; `enforce_assessment_coi()` blocks an examiner grading
 a candidate they instruct.
 
@@ -235,6 +239,7 @@ data are prohibited. This applies to ALL modules, existing and new.
 - Memberships → Active / **Expired** (existing `expires_at`)
 - Products / Store → Active / **Hidden** (existing hide)
 - Invoices → Outstanding / Paid / **Void** (existing status)
+- Payment vouchers → Active (draft + approved) / Paid / **Void** (existing `status`)
 - Instructor blacklist → Active / **Lifted**
 - Sessions → Active / Completed / Cancelled / **Archived** (existing `session_status`)
 

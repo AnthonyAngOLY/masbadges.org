@@ -26,6 +26,8 @@ const CAPABILITIES: Record<string, string[]> = {
   examiner: ['Receive assessment invitations', 'Conduct & grade assessments', 'Issue certificates (self-stamped)', 'Blocked from assessing own-registered candidates'],
   instructor: ['Register candidates', 'Schedule assessments', 'Register / represent an appointed centre', 'Print claim slips', 'View own invoices'],
   partner_center_admin: ['Administer own centre (contact details)', 'View centre invoices', 'Scoped to a single centre'],
+  finance_officer: ['Record payments in against invoices', 'Prepare payment vouchers (money out)', 'Pay approved vouchers', 'Cannot approve a voucher they prepared'],
+  finance_approver: ['Approve payment vouchers prepared by someone else', 'Approval allocates the voucher number', 'No payment or preparation rights of its own'],
   system_admin: ['Full administrative access (role wildcard)', 'Accounts & invoicing', 'Instructor & course administration', 'All queues', 'Should remain non-operational'],
 };
 

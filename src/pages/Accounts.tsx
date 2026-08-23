@@ -1,18 +1,22 @@
-// #16 — Accounts / Examiner payouts, dense-table conversion.
+// #16 — Accounts / Session payouts, dense-table conversion.
 //
-// Tight-row style matching Invoices & Payments: single-line rows, plain text
-// links, no pill styles, wide page. Payout form still lives inline in an
-// expanded detail row (record_examiner_payout needs real inputs).
+// Money OUT no longer moves from this screen: each CD-4 component is raised as
+// a DRAFT payment voucher, pre-filled from the session, and travels on to
+// Billing · Payment vouchers for a second person to approve and pay.
 //
-// Wire (unchanged where used):
+// Wire:
 //   list      ← list_sessions_overview() → session_id, status, venue,
 //                scheduled_on, state, examiner_name, invoice_paid,
 //                payout_recorded, …
 //   breakdown ← session_payout_breakdown(_session_id) → {examiner_rm,
 //                instructor_rm, hosting_rm, mas_retention_rm, total_rm,
 //                candidate_count} per CD-4
-//   pay       ← record_examiner_payout(_session_id, _amount, _reference)
+//   payees    ← get_session_payout_targets(_session_id) → who is paid which
+//                component, and whether it is payable at all
+//   raised    ← list_payment_vouchers() (filtered to this session)
+//   prepare   → prepare_session_payout_voucher(_session_id, _component, …)
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import '../styles/admin.css';
 
@@ -39,8 +43,28 @@ interface PayoutBreakdown {
   total_rm: number;
   candidate_count: number;
 }
+interface PayoutTarget {
+  component: string;          // examiner | instructor | hosting
+  category: string;           // examiner_payout | instructor_payout | hosting_payout
+  amount: number;
+  payee_profile_id: string | null;
+  payee_name: string | null;
+  payable: boolean;
+}
+interface SessionVoucher {
+  voucher_id: string;
+  voucher_no: string | null;
+  category: string;
+  status: string;
+  amount: number;
+  session_id: string | null;
+}
 type Load = 'loading' | 'ready' | 'error';
 type Tab = 'awaiting' | 'paid' | 'archived';
+
+const COMPONENT_LABEL: Record<string, string> = {
+  examiner: 'Examiner', instructor: 'Instructor', hosting: 'Hosting',
+};
 
 const TERMINAL = new Set(['completed', 'closed', 'archived']);
 
@@ -103,10 +127,10 @@ export default function Accounts() {
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // CD-4 breakdown cache — keyed by session_id
+  // CD-4 breakdown + payee cache — keyed by session_id
   const [breakdown, setBreakdown] = useState<Record<string, PayoutBreakdown | null>>({});
-  const [amount, setAmount] = useState<Record<string, string>>({});
-  const [reference, setReference] = useState<Record<string, string>>({});
+  const [targets, setTargets] = useState<Record<string, PayoutTarget[]>>({});
+  const [vouchers, setVouchers] = useState<SessionVoucher[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [rowOk, setRowOk] = useState<Record<string, string>>({});
@@ -119,7 +143,14 @@ export default function Accounts() {
     setLoad('ready');
   }, []);
 
-  useEffect(() => { fetchSessions(); }, [fetchSessions]);
+  // Vouchers already raised, so a component is never prepared twice. Reuses the
+  // register read rather than adding a per-session RPC.
+  const fetchVouchers = useCallback(async () => {
+    const { data } = await supabase.rpc('list_payment_vouchers');
+    setVouchers(((data ?? []) as SessionVoucher[]).filter((v) => v.session_id != null));
+  }, []);
+
+  useEffect(() => { fetchSessions(); fetchVouchers(); }, [fetchSessions, fetchVouchers]);
 
   // Loads the CD-4 four-component payout breakdown for a session, caches it.
   // Called on expand; the examiner_rm value pre-fills the amount field.
@@ -141,7 +172,12 @@ export default function Accounts() {
       candidate_count:  Number(row.candidate_count ?? 0),
     };
     setBreakdown((m) => ({ ...m, [sessionId]: b }));
-    setAmount((m) => (m[sessionId] ? m : { ...m, [sessionId]: String(b.examiner_rm) }));
+
+    const { data: t } = await supabase.rpc('get_session_payout_targets', { _session_id: sessionId });
+    setTargets((m) => ({
+      ...m,
+      [sessionId]: ((t ?? []) as PayoutTarget[]).map((x) => ({ ...x, amount: Number(x.amount ?? 0) })),
+    }));
   }, [breakdown]);
 
   function toggleExpand(sessionId: string) {
@@ -152,27 +188,41 @@ export default function Accounts() {
     });
   }
 
-  async function recordPayout(s: SessionOverview) {
-    const amt = Number(amount[s.session_id] ?? '');
-    if (!amt || amt <= 0) {
-      setRowError((m) => ({ ...m, [s.session_id]: 'Enter a positive amount.' }));
-      return;
-    }
-    setBusy(s.session_id);
+  // Raises the DRAFT voucher for one CD-4 component. Money does not move here:
+  // the voucher goes to Billing · Payment vouchers for approval and payment.
+  async function prepareVoucher(s: SessionOverview, t: PayoutTarget) {
+    const key = `${s.session_id}:${t.component}`;
+    setBusy(key);
     setRowError((m) => { const n = { ...m }; delete n[s.session_id]; return n; });
     setRowOk((m) => { const n = { ...m }; delete n[s.session_id]; return n; });
-    const { error } = await supabase.rpc('record_examiner_payout', {
+    const { error } = await supabase.rpc('prepare_session_payout_voucher', {
       _session_id: s.session_id,
-      _amount: amt,
-      _reference: (reference[s.session_id] ?? '').trim() || null,
+      _component: t.component,
+      _amount: null,
+      _memo: null,
     });
     setBusy(null);
     if (error) {
       setRowError((m) => ({ ...m, [s.session_id]: error.message }));
       return;
     }
-    setRowOk((m) => ({ ...m, [s.session_id]: `Payout of ${money(amt)} recorded.` }));
-    fetchSessions();
+    setRowOk((m) => ({
+      ...m,
+      [s.session_id]:
+        `${COMPONENT_LABEL[t.component] ?? t.component} voucher for ${money(t.amount)} prepared — it now needs approval.`,
+    }));
+    await fetchVouchers();
+  }
+
+  // The vouchers already raised against a session, by category.
+  function raisedFor(sessionId: string): Record<string, SessionVoucher> {
+    const out: Record<string, SessionVoucher> = {};
+    for (const v of vouchers) {
+      if (v.session_id !== sessionId) continue;
+      if (v.status === 'void') continue;
+      out[v.category] = v;
+    }
+    return out;
   }
 
   const counts = useMemo(() => {
@@ -201,12 +251,14 @@ export default function Accounts() {
       <style>{CSS}</style>
       <header className="mas-page-head">
         <p className="mas-eyebrow">Accounts</p>
-        <h1>Examiner payouts</h1>
+        <h1>Session payouts</h1>
         <p className="mas-lede">
-          Record payments out to examiners for completed, invoiced sessions. A payout
-          becomes actionable once the session invoice has been paid. Invoicing and
-          money-in live in <em>Billing · Invoices &amp; Payments</em>; certificate
-          release and session close happen automatically.
+          Raise the CD-4 payouts due on completed, invoiced sessions — examiner,
+          instructor and hosting, each its own voucher. A session becomes actionable
+          once its invoice has been paid. Money only moves once a second person
+          approves and pays the voucher in{' '}
+          <Link to="/billing/vouchers">Billing · Payment vouchers</Link>. Money in
+          lives in <em>Billing · Invoices &amp; Payments</em>.
         </p>
       </header>
 
@@ -243,7 +295,7 @@ export default function Accounts() {
       {load === 'ready' && filtered.length === 0 && (
         <p className="mas-status">
           {tab === 'awaiting' ? 'Nothing awaiting payout right now.'
-            : tab === 'paid' ? 'No payouts recorded yet.'
+            : tab === 'paid' ? 'No payouts paid out yet.'
             : 'No archived sessions.'}
         </p>
       )}
@@ -258,15 +310,17 @@ export default function Accounts() {
                 <th>Examiner</th>
                 <th className="mas-num">Candidates</th>
                 <th>Invoice</th>
-                <th>Payout</th>
+                <th>Vouchers</th>
                 <th className="mas-table-actioncol">Action</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((s) => {
                 const isOpen = expanded === s.session_id;
-                const canRecord = tab === 'awaiting' && s.invoice_paid && !s.payout_recorded && !!s.examiner_name;
+                const canRaise = tab === 'awaiting' && s.invoice_paid;
                 const b = breakdown[s.session_id];
+                const raised = raisedFor(s.session_id);
+                const raisedCount = Object.keys(raised).length;
                 return (
                   <Fragment key={s.session_id}>
                     <tr className={isOpen ? 'is-open' : undefined}>
@@ -277,13 +331,15 @@ export default function Accounts() {
                       <td>{s.examiner_name || <span className="mas-cell-sub">unassigned</span>}</td>
                       <td className="mas-num">{Number(s.candidate_count)}</td>
                       <td>{s.invoice_status ? pretty(s.invoice_status) : 'None'}</td>
-                      <td>{s.payout_recorded ? 'Recorded' : 'Pending'}</td>
+                      <td>
+                        {raisedCount > 0
+                          ? `${raisedCount} raised`
+                          : s.payout_recorded ? 'Paid' : <span className="mas-cell-sub">None</span>}
+                      </td>
                       <td className="mas-table-actioncol">
-                        {canRecord && (
-                          <button className="mas-link" onClick={() => toggleExpand(s.session_id)}>
-                            {isOpen ? 'Close' : 'Record'}
-                          </button>
-                        )}
+                        <button className="mas-link" onClick={() => toggleExpand(s.session_id)}>
+                          {isOpen ? 'Close' : canRaise ? 'Raise payouts' : 'Breakdown'}
+                        </button>
                       </td>
                     </tr>
 
@@ -306,44 +362,61 @@ export default function Accounts() {
                                   <dt className="is-total">Total</dt><dd className="is-total">{money(b.total_rm)}</dd>
                                 </dl>
                                 <p className="mas-cd4-note">
-                                  Per Manual Appendix D (CD-4). Examiner component pre-fills the payout amount below.
-                                  Hosting is paid to the venue-provider of record (partner centre / independent instructor / MAS).
+                                  Per Manual Appendix D (CD-4). MAS retention is not a disbursement — it never
+                                  becomes a voucher. Hosting is paid to the venue-provider of record (partner
+                                  centre / independent instructor / MAS).
                                 </p>
                               </>
                             )}
 
-                            {canRecord ? (
-                              <div className="mas-payout-form">
-                                <label>Amount to examiner (RM)
-                                  <input
-                                    type="number" step="0.01"
-                                    value={amount[s.session_id] ?? ''}
-                                    onChange={(e) => setAmount((m) => ({ ...m, [s.session_id]: e.target.value }))}
-                                    style={{ width: '10rem' }}
-                                  />
-                                </label>
-                                <label>Reference
-                                  <input
-                                    type="text"
-                                    value={reference[s.session_id] ?? ''}
-                                    onChange={(e) => setReference((m) => ({ ...m, [s.session_id]: e.target.value }))}
-                                    placeholder="payout proof / receipt"
-                                    style={{ width: '16rem' }}
-                                  />
-                                </label>
-                                <button
-                                  className="mas-btn-primary mas-btn-compact"
-                                  onClick={() => recordPayout(s)}
-                                  disabled={busy === s.session_id}
-                                >
-                                  {busy === s.session_id ? 'Recording…' : 'Record examiner payout'}
-                                </button>
-                              </div>
+                            {canRaise ? (
+                              <table className="mas-table mas-tight" style={{ marginTop: '0.2rem' }}>
+                                <thead>
+                                  <tr>
+                                    <th>Component</th><th>Payee</th>
+                                    <th className="mas-num">Amount</th><th>Voucher</th>
+                                    <th className="mas-table-actioncol">Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(targets[s.session_id] ?? []).map((t) => {
+                                    const existing = raised[t.category];
+                                    const key = `${s.session_id}:${t.component}`;
+                                    return (
+                                      <tr key={t.component}>
+                                        <td className="mas-cell-strong">{COMPONENT_LABEL[t.component] ?? t.component}</td>
+                                        <td>{t.payee_name || <span className="mas-cell-sub">no payee of record</span>}</td>
+                                        <td className="mas-num">{money(t.amount)}</td>
+                                        <td>
+                                          {existing
+                                            ? `${existing.voucher_no ?? 'Draft'} · ${pretty(existing.status)}`
+                                            : <span className="mas-cell-sub">not raised</span>}
+                                        </td>
+                                        <td className="mas-table-actioncol">
+                                          {existing ? (
+                                            <Link className="mas-link" to="/billing/vouchers">Open register</Link>
+                                          ) : t.payable ? (
+                                            <button className="mas-link"
+                                              onClick={() => prepareVoucher(s, t)}
+                                              disabled={busy === key}>
+                                              {busy === key ? 'Preparing…' : 'Prepare voucher'}
+                                            </button>
+                                          ) : (
+                                            <span className="mas-cell-sub">nothing payable</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                  {(targets[s.session_id] ?? []).length === 0 && (
+                                    <tr><td colSpan={5} className="mas-status">Loading payees…</td></tr>
+                                  )}
+                                </tbody>
+                              </table>
                             ) : (
                               <p className="mas-status">
-                                {s.payout_recorded ? 'Payout already recorded.'
-                                  : !s.examiner_name ? 'No examiner assigned yet.'
-                                  : !s.invoice_paid ? 'Waiting for the session invoice to be paid.'
+                                {!s.invoice_paid ? 'Waiting for the session invoice to be paid.'
+                                  : s.payout_recorded ? 'Payouts already paid for this session.'
                                   : 'Not yet actionable.'}
                               </p>
                             )}
