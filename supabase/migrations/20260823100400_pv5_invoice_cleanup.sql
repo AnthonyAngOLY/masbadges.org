@@ -38,11 +38,14 @@ delete from public.app_settings
  where key in ('examiner_base_per_candidate', 'examiner_travel_default');
 
 -- ============ 4 · billing register read ============
--- The Invoices & payments register renders the last payment's method and
--- reference in its row; pin the tracked definition to that shape. Return type
--- changes, so this is a drop + create rather than a replace.
-drop function if exists public.list_billing_invoices();
-
+-- Pins the tracked definition to what is ALREADY DEPLOYED, verbatim. The live
+-- function had drifted ahead of this repo (it carries the last-payment columns
+-- the register renders, and falls back to the bill-to's email when their
+-- profile has no full_name). Applying this is a no-op against live — it exists
+-- so the migration history stops lying about the billing read.
+--
+-- The signature is unchanged, so create-or-replace is enough; no drop, and no
+-- window where the register's read is missing.
 create or replace function public.list_billing_invoices()
  returns table(
    invoice_id          uuid,
@@ -68,26 +71,24 @@ create or replace function public.list_billing_invoices()
 as $fn$
   select
     i.id, i.receipt_no, i.stage, i.status, i.total,
-    coalesce(paid.sum_in, 0) as paid_to_date,
-    i.total - coalesce(paid.sum_in, 0) as outstanding,
+    coalesce((select sum(p.amount) from public.payments p
+              where p.invoice_id = i.id and p.direction = 'inbound'), 0) as paid_to_date,
+    i.total - coalesce((select sum(p.amount) from public.payments p
+              where p.invoice_id = i.id and p.direction = 'inbound'), 0) as outstanding,
     i.session_id, s.venue, s.scheduled_on, s.status,
-    pr.full_name, i.created_at,
-    lastpay.reference, lastpay.method, lastpay.recorded_at
+    coalesce(nullif(trim(pr.full_name), ''), pr.email),
+    i.created_at,
+    lp.reference, lp.method, lp.recorded_at
   from public.invoices i
   left join public.assessment_sessions s on s.id = i.session_id
   left join public.profiles pr on pr.id = i.bill_to_profile_id
   left join lateral (
-    select sum(p.amount) as sum_in
-      from public.payments p
-     where p.invoice_id = i.id and p.direction = 'inbound'
-  ) paid on true
-  left join lateral (
     select p.reference, p.method, p.recorded_at
-      from public.payments p
-     where p.invoice_id = i.id and p.direction = 'inbound'
-     order by p.recorded_at desc
-     limit 1
-  ) lastpay on true
+    from public.payments p
+    where p.invoice_id = i.id and p.direction = 'inbound'
+    order by p.recorded_at desc
+    limit 1
+  ) lp on true
   where public.has_role('finance_officer') or public.has_role('system_admin')
         or public.has_role('chairperson')
   order by (i.status in ('pro_forma','issued')) desc, i.created_at desc;

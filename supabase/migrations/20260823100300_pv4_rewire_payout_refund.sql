@@ -233,7 +233,8 @@ as $fn$
   )
   select
     i.id, i.receipt_no, i.session_id, s.venue, s.scheduled_on,
-    i.bill_to_profile_id, pr.full_name,
+    i.bill_to_profile_id,
+    coalesce(nullif(trim(pr.full_name), ''), pr.email),
     x.paid_amount, x.refunded,
     x.paid_amount - x.refunded - x.committed
   from public.invoices i
