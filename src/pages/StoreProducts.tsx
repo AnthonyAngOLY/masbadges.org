@@ -38,13 +38,6 @@ const CATEGORY_OPTIONS = [
 
 const CSS = `
 .mas-catalog-page { max-width: none; }
-.mas-catalog-head {
-  background: #fff; border: 1px solid var(--mas-line, #e3e9f3); border-radius: 10px;
-  padding: 1rem 1.2rem; margin-bottom: 1.2rem;
-}
-.mas-catalog-head h2 { margin: 0 0 0.35rem; color: var(--mas-navy, #1E2752); font-size: 1.05rem; }
-.mas-catalog-head p { margin: 0; color: var(--mas-muted, #5b6472); font-size: 0.88rem; line-height: 1.45; }
-
 .mas-catalog-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
@@ -412,15 +405,6 @@ export default function StoreProducts() {
       </header>
 
 
-      {/* TEMP DIAG: shows current editId + whether drawer will render.
-           Remove once verified. */}
-      <div style={{
-        padding: '0.6rem 0.9rem', background: '#fef4d9', color: '#7a5b00',
-        border: '1px solid #F9C610', borderRadius: 6, marginBottom: '0.8rem',
-        fontFamily: 'ui-monospace, monospace', fontSize: '0.8rem',
-      }}>
-        DIAG: editId={String(editId)} · rows.length={rows.length} · editingProduct={editingProduct ? editingProduct.name : 'null'}
-      </div>
       {editingProduct && (
         <div className="mas-edit-drawer" id="mas-store-editor">
           <h3>Edit — {editingProduct.name}</h3>
@@ -476,11 +460,6 @@ export default function StoreProducts() {
           </div>
         </div>
       )}
-
-      <div className="mas-catalog-head">
-        <h2><Icon name="flag" /> Product catalogue</h2>
-        <p>Items you sell (goggles, caps, swim diapers, badges, teaching materials). The photo and details show in the buyer store so instructors and centres pick the right item. Drag the handle on a card to re-order. Shared across all buyers; price stays editable per sale.</p>
-      </div>
 
       {msg && (
         <div className={`mas-catalog-msg ${msg.ok ? 'is-good' : 'is-bad'}`}>{msg.text}</div>
