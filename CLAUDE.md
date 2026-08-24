@@ -103,6 +103,7 @@ src/
            MyInvoices, CentreAdmin, RegisterCandidate, ClaimSlips, CreateSession,
            InviteExaminer, ExaminerGrading, Invitations, AssessmentsOversight,
            PaymentVouchers (/billing/vouchers — money OUT),
+           MyPayouts (/my-payouts — payee's own approved/paid vouchers),
            ExaminerRegistry, Certificates, Accounts, CentreBilling, Store, StoreAdmin,
            InstructorOnboarding, InstructorBlacklist, CourseManagement,
            CentreManagement, Enquiries, RegisterCentre, PartnerApplications,

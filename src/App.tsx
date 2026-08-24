@@ -58,6 +58,7 @@ import PrintableCertificate from './pages/PrintableCertificate';
 import MySessions from './pages/MySessions';
 import BillingPayments from './pages/BillingPayments';
 import PaymentVouchers from './pages/PaymentVouchers';
+import MyPayouts from './pages/MyPayouts';
 import Enquiries from './pages/Enquiries';
 import WebsiteGuides from './pages/WebsiteGuides';
 import WebsiteContentOverrides from './pages/WebsiteContentOverrides';
@@ -438,6 +439,10 @@ function Sidebar({
   const canVouchers =
     hasRole('finance_officer') || hasRole('finance_approver') ||
     hasRole('system_admin') || hasRole('chairperson');
+  // Anyone who can be paid gets their own payout view.
+  const canMyPayouts =
+    hasRole('examiner') || hasRole('instructor') || hasRole('partner_center_admin') ||
+    hasRole('master_trainer') || hasRole('instructor_trainer') || hasRole('examiner_trainer');
   const canClaimSlips = canRegister;
   const canOnboard =
     hasRole('instructor_trainer') || hasRole('chairperson') || hasRole('board_member');
@@ -468,7 +473,7 @@ function Sidebar({
 
   const assessmentsGroup =
     canRegister || canSchedule || canGrade || canInvitations || canViewCerts || isGovernance || canClaimSlips || canMySessions;
-  const billingGroup = canAccounts || canMyInvoices || canCentreBilling || canManageStore || canStoreProducts || canBilling || canVouchers;
+  const billingGroup = canAccounts || canMyInvoices || canCentreBilling || canManageStore || canStoreProducts || canBilling || canVouchers || canMyPayouts;
   const governanceGroup =
     canManageCentres || canManageMembers || canOnboard || canBlacklist || canManageCourses || canEnquiries || canPartnerApps || canAuditLog || canCentreDirectory;
   const systemGroup =
@@ -600,6 +605,7 @@ function Sidebar({
               {canBilling && <NavLink to="/billing/payments" className={navClass}><Icon name="card" /><span>Invoices &amp; Payments</span><AttentionDot count={outstandingInvoices} variant="count" label="outstanding invoices" /></NavLink>}
               {canVouchers && <NavLink to="/billing/vouchers" className={navClass}><Icon name="file" /><span>Payment vouchers</span><AttentionDot count={pendingVouchers} variant="count" label="vouchers awaiting approval" /></NavLink>}
               {canMyInvoices && <NavLink to="/invoices" className={navClass}><Icon name="file" /><span>My invoices</span></NavLink>}
+              {canMyPayouts && <NavLink to="/my-payouts" className={navClass}><Icon name="card" /><span>My payouts</span></NavLink>}
             </div>
           </details>
         )}
@@ -684,6 +690,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/centre-billing': 'Centre billing',
   '/billing/payments': 'Invoices & Payments',
   '/billing/vouchers': 'Payment vouchers',
+  '/my-payouts': 'My payouts',
   '/store': 'Store',
   '/admin/store': 'Store orders',
   '/admin/store-products': 'Store products',
@@ -894,6 +901,7 @@ export default function App() {
               <Route path="/admin/centre-billing" element={<RequireRole roles={['chairperson', 'board_member', 'system_admin']}><CentreBilling /></RequireRole>} />
               <Route path="/billing/payments" element={<RequireRole roles={['finance_officer', 'system_admin', 'chairperson']}><BillingPayments /></RequireRole>} />
               <Route path="/billing/vouchers" element={<RequireRole roles={['finance_officer', 'finance_approver', 'system_admin', 'chairperson']}><PaymentVouchers /></RequireRole>} />
+              <Route path="/my-payouts" element={<RequireRole roles={['examiner', 'instructor', 'partner_center_admin', 'master_trainer', 'instructor_trainer', 'examiner_trainer', 'finance_officer', 'system_admin', 'chairperson']}><MyPayouts /></RequireRole>} />
               <Route path="/store" element={<RequireRole roles={['instructor', 'partner_center_admin', 'examiner']}><Store /></RequireRole>} />
               <Route path="/admin/store" element={<RequireRole roles={['system_admin', 'chairperson', 'board_member']}><StoreAdmin /></RequireRole>} />
               <Route path="/admin/store-products" element={<RequireRole roles={['system_admin', 'finance_officer']}><StoreProducts /></RequireRole>} />
