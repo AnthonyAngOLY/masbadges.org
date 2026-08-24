@@ -100,4 +100,5 @@ export const ROLE_LABELS: Record<string, string> = {
   partner_center_admin: 'Centre Admin',
   system_admin: 'System Administrator',
   finance_officer: 'Finance Officer',
+  finance_approver: 'Finance Approver',
 };

@@ -2,14 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
-// A5 printable invoice / receipt. Routed:
+// A5 printable invoice / receipt / payment voucher. Routed:
 //   /billing/invoice/:id   → invoice mode  (get_invoice_document)
 //   /billing/receipt/:id   → receipt mode  (get_receipt_document)
+//   /billing/voucher/:id   → voucher mode  (get_voucher_document) — money OUT
 // On screen: a centred A5 card + Print button. On print: just the A5 document
 // (@page size A5). Payment instructions are a PLACEHOLDER until real bank
 // details are provided.
 
-type Mode = 'invoice' | 'receipt';
+type Mode = 'invoice' | 'receipt' | 'voucher';
 type Load = 'loading' | 'ready' | 'error' | 'empty';
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -111,8 +112,12 @@ export default function PrintableDocument({ mode }: { mode: Mode }) {
       return;
     }
     setLoad('loading');
-    const fn = mode === 'invoice' ? 'get_invoice_document' : 'get_receipt_document';
-    const { data, error } = await supabase.rpc(fn, { _invoice_id: id });
+    const { data, error } = mode === 'voucher'
+      ? await supabase.rpc('get_voucher_document', { _voucher_id: id })
+      : await supabase.rpc(
+          mode === 'invoice' ? 'get_invoice_document' : 'get_receipt_document',
+          { _invoice_id: id },
+        );
     if (error) {
       setLoad('error');
       return;
@@ -153,11 +158,17 @@ export default function PrintableDocument({ mode }: { mode: Mode }) {
         {load === 'error' && <p className="mas-status mas-status-bad">Couldn’t load this document.</p>}
         {load === 'empty' && (
           <p className="mas-status">
-            {mode === 'receipt' ? 'No receipt yet — this invoice isn’t fully paid.' : 'Invoice not found.'}
+            {mode === 'receipt' ? 'No receipt yet — this invoice isn’t fully paid.'
+              : mode === 'voucher' ? 'Voucher not found.'
+              : 'Invoice not found.'}
           </p>
         )}
 
-        {load === 'ready' && doc && (mode === 'invoice' ? <Invoice d={doc} finance={finance} /> : <Receipt d={doc} />)}
+        {load === 'ready' && doc && (
+          mode === 'invoice' ? <Invoice d={doc} finance={finance} />
+            : mode === 'voucher' ? <Voucher d={doc} />
+            : <Receipt d={doc} />
+        )}
       </div>
     </section>
   );
@@ -308,6 +319,131 @@ function Receipt({ d }: { d: DocData }) {
 
       <div className="mas-doc-foot">
         MAS Badges · Malaysia Aquatics Learn-to-Swim certification · Thank you. This is a computer-generated receipt.
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Payment voucher — money OUT. The A5 authorisation document: who is being
+// paid, what for, and the prepared / approved / paid signature trail. The MAS
+// payer block comes from org_finance_settings (the same singleton the invoice
+// reads), embedded in the document payload by get_voucher_document().
+// ---------------------------------------------------------------------------
+const VOUCHER_CATEGORY: Record<string, string> = {
+  examiner_payout: 'Examiner payout',
+  instructor_payout: 'Instructor payout',
+  hosting_payout: 'Hosting payout',
+  refund: 'Refund',
+  reimbursement: 'Reimbursement',
+  other: 'Other disbursement',
+};
+
+interface VoucherPayer {
+  beneficiary_name: string | null;
+  bank_name: string | null;
+  account_myr: string | null;
+  finance_email: string | null;
+  finance_pic: string | null;
+}
+
+function voucherStatusLabel(s: string): string {
+  if (s === 'draft') return 'Draft — awaiting approval';
+  if (s === 'approved') return 'Approved — awaiting payment';
+  if (s === 'paid') return 'Paid';
+  if (s === 'void') return 'Void';
+  return s;
+}
+
+function Voucher({ d }: { d: DocData }) {
+  const status = String(d.status ?? '');
+  const currency = String(d.currency ?? 'MYR');
+  const amount = `${currency === 'MYR' ? 'RM' : currency} ${Number(d.amount ?? 0).toFixed(2)}`;
+  const payer = (d.payer ?? null) as VoucherPayer | null;
+  const against = d.invoice_no
+    ? `Invoice ${String(d.invoice_no)}`
+    : d.session_venue || d.session_date
+      ? `${String(d.session_venue ?? 'Assessment session')} · ${prettyDate(d.session_date as string)}`
+      : '—';
+
+  return (
+    <div className="mas-doc">
+      <DocHead kind="Payment voucher" no={String(d.voucher_no ?? '— (draft)')} />
+      <div className="mas-doc-meta">
+        <div>
+          <h3>Pay to</h3>
+          <div><strong>{String(d.payee_name ?? '—')}</strong></div>
+          {d.payee_email ? <div>{String(d.payee_email)}</div> : null}
+          {d.centre_name ? <div>{String(d.centre_name)}</div> : null}
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <h3>Details</h3>
+          <div>Category: {VOUCHER_CATEGORY[String(d.category ?? '')] ?? String(d.category ?? '—')}</div>
+          <div>Against: {against}</div>
+          <div>Status: {voucherStatusLabel(status)}</div>
+        </div>
+      </div>
+
+      <table className="mas-doc-table">
+        <thead>
+          <tr><th>Description</th><th className="num">Amount</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{String(d.memo ?? VOUCHER_CATEGORY[String(d.category ?? '')] ?? 'Disbursement')}</td>
+            <td className="num">{amount}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="mas-doc-total">
+        <table>
+          <tbody>
+            <tr className="grand"><td>Total payable</td><td className="num">{amount}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mas-doc-pay">
+        <h3>Authorisation</h3>
+        <div className="mas-doc-paygrid">
+          <span><span className="k">Prepared by </span><span className="v">{String(d.prepared_by ?? '—')}</span></span>
+          <span><span className="k">on </span><span className="v">{prettyDate(d.prepared_at as string)}</span></span>
+        </div>
+        <div className="mas-doc-paygrid">
+          <span><span className="k">Approved by </span><span className="v">{String(d.approved_by ?? '—')}</span></span>
+          <span><span className="k">on </span><span className="v">{prettyDate(d.approved_at as string)}</span></span>
+        </div>
+        {status === 'paid' && (
+          <div className="mas-doc-paygrid">
+            <span><span className="k">Paid by </span><span className="v">{String(d.paid_by ?? '—')}</span></span>
+            <span><span className="k">on </span><span className="v">{prettyDate(d.paid_at as string)}</span></span>
+            {d.method ? <span><span className="k">Method </span><span className="v">{String(d.method)}</span></span> : null}
+            {d.reference ? <span><span className="k">Ref </span><span className="v">{String(d.reference)}</span></span> : null}
+          </div>
+        )}
+        {status === 'void' && d.void_reason ? (
+          <p className="mas-doc-paynote">Voided — {String(d.void_reason)}</p>
+        ) : null}
+        {payer?.beneficiary_name ? (
+          <p className="mas-doc-paynote">
+            Paid by <strong>{payer.beneficiary_name}</strong>
+            {payer.bank_name ? ` · ${payer.bank_name}` : ''}
+            {payer.account_myr ? ` · A/C ${payer.account_myr}` : ''}
+            {payer.finance_pic ? ` · attn: ${payer.finance_pic}` : ''}
+            {payer.finance_email ? ` · ${payer.finance_email}` : ''}
+          </p>
+        ) : null}
+      </div>
+
+      {status === 'paid' && (
+        <div style={{ marginTop: '14px' }}>
+          <span className="mas-doc-paidstamp">Paid</span>
+        </div>
+      )}
+
+      <div className="mas-doc-foot">
+        MAS Badges · Malaysia Aquatics Learn-to-Swim certification · This is a computer-generated payment voucher.
       </div>
     </div>
   );

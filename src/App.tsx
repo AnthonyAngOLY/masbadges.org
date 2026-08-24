@@ -57,6 +57,8 @@ import PrintableDocument from './pages/PrintableDocument';
 import PrintableCertificate from './pages/PrintableCertificate';
 import MySessions from './pages/MySessions';
 import BillingPayments from './pages/BillingPayments';
+import PaymentVouchers from './pages/PaymentVouchers';
+import MyPayouts from './pages/MyPayouts';
 import Enquiries from './pages/Enquiries';
 import WebsiteGuides from './pages/WebsiteGuides';
 import WebsiteContentOverrides from './pages/WebsiteContentOverrides';
@@ -433,6 +435,14 @@ function Sidebar({
     hasRole('instructor') || hasRole('master_trainer') || hasRole('examiner') ||
     hasRole('finance_officer') || isGovernance;
   const canBilling = hasRole('finance_officer') || hasRole('system_admin') || hasRole('chairperson');
+  // Money out: the finance desk prepares and pays, the approvers approve.
+  const canVouchers =
+    hasRole('finance_officer') || hasRole('finance_approver') ||
+    hasRole('system_admin') || hasRole('chairperson');
+  // Anyone who can be paid gets their own payout view.
+  const canMyPayouts =
+    hasRole('examiner') || hasRole('instructor') || hasRole('partner_center_admin') ||
+    hasRole('master_trainer') || hasRole('instructor_trainer') || hasRole('examiner_trainer');
   const canClaimSlips = canRegister;
   const canOnboard =
     hasRole('instructor_trainer') || hasRole('chairperson') || hasRole('board_member');
@@ -463,7 +473,7 @@ function Sidebar({
 
   const assessmentsGroup =
     canRegister || canSchedule || canGrade || canInvitations || canViewCerts || isGovernance || canClaimSlips || canMySessions;
-  const billingGroup = canAccounts || canMyInvoices || canCentreBilling || canManageStore || canStoreProducts || canBilling;
+  const billingGroup = canAccounts || canMyInvoices || canCentreBilling || canManageStore || canStoreProducts || canBilling || canVouchers || canMyPayouts;
   const governanceGroup =
     canManageCentres || canManageMembers || canOnboard || canBlacklist || canManageCourses || canEnquiries || canPartnerApps || canAuditLog || canCentreDirectory;
   const systemGroup =
@@ -502,6 +512,16 @@ function Sidebar({
     });
     return () => { active = false; };
   }, [canBilling, location.pathname]);
+
+  const [pendingVouchers, setPendingVouchers] = useState(0);
+  useEffect(() => {
+    if (!canVouchers) { setPendingVouchers(0); return; }
+    let active = true;
+    supabase.rpc('count_pending_voucher_approvals').then(({ data }) => {
+      if (active) setPendingVouchers(typeof data === 'number' ? data : 0);
+    });
+    return () => { active = false; };
+  }, [canVouchers, location.pathname]);
 
   const [openSessions, setOpenSessions] = useState(0);
   useEffect(() => {
@@ -578,12 +598,14 @@ function Sidebar({
           <details className="mas-navgroup" open>
             <summary>Billing</summary>
             <div className="mas-navgroup-items">
-              {canAccounts && <NavLink to="/admin/accounts" className={navClass}><Icon name="card" /><span>Examiner payouts</span></NavLink>}
+              {canAccounts && <NavLink to="/admin/accounts" className={navClass}><Icon name="card" /><span>Session payouts</span></NavLink>}
               {canCentreBilling && <NavLink to="/admin/centre-billing" className={navClass}><Icon name="building" /><span>Centre billing</span></NavLink>}
               {canStoreProducts && <NavLink to="/admin/store-products" className={navClass}><Icon name="grid" /><span>Store products</span></NavLink>}
               {canManageStore && <NavLink to="/admin/store" className={navClass}><Icon name="inbox" /><span>Store orders</span></NavLink>}
               {canBilling && <NavLink to="/billing/payments" className={navClass}><Icon name="card" /><span>Invoices &amp; Payments</span><AttentionDot count={outstandingInvoices} variant="count" label="outstanding invoices" /></NavLink>}
+              {canVouchers && <NavLink to="/billing/vouchers" className={navClass}><Icon name="file" /><span>Payment vouchers</span><AttentionDot count={pendingVouchers} variant="count" label="vouchers awaiting approval" /></NavLink>}
               {canMyInvoices && <NavLink to="/invoices" className={navClass}><Icon name="file" /><span>My invoices</span></NavLink>}
+              {canMyPayouts && <NavLink to="/my-payouts" className={navClass}><Icon name="card" /><span>My payouts</span></NavLink>}
             </div>
           </details>
         )}
@@ -664,9 +686,11 @@ const PAGE_TITLES: Record<string, string> = {
   '/assessments/examiners': 'Examiner registry',
   '/certificates/issue': 'Issue certificates',
   '/certificates': 'Certificates',
-  '/admin/accounts': 'Examiner payouts',
+  '/admin/accounts': 'Session payouts',
   '/admin/centre-billing': 'Centre billing',
   '/billing/payments': 'Invoices & Payments',
+  '/billing/vouchers': 'Payment vouchers',
+  '/my-payouts': 'My payouts',
   '/store': 'Store',
   '/admin/store': 'Store orders',
   '/admin/store-products': 'Store products',
@@ -861,6 +885,7 @@ export default function App() {
               <Route path="/invoices" element={<RequireRole roles={['instructor', 'partner_center_admin']}><MyInvoices /></RequireRole>} />
               <Route path="/billing/invoice/:id" element={<RequireRole roles={['instructor', 'partner_center_admin', 'master_trainer', 'finance_officer', 'system_admin', 'chairperson', 'chief_examiner']}><PrintableDocument mode="invoice" /></RequireRole>} />
               <Route path="/billing/receipt/:id" element={<RequireRole roles={['instructor', 'partner_center_admin', 'master_trainer', 'finance_officer', 'system_admin', 'chairperson', 'chief_examiner']}><PrintableDocument mode="receipt" /></RequireRole>} />
+              <Route path="/billing/voucher/:id" element={<RequireRole roles={['instructor', 'examiner', 'partner_center_admin', 'finance_officer', 'finance_approver', 'system_admin', 'chairperson']}><PrintableDocument mode="voucher" /></RequireRole>} />
               <Route path="/certificate/:serial" element={<Protected><PrintableCertificate /></Protected>} />
               <Route path="/centre" element={<RequireRole roles={['partner_center_admin']}><CentreAdmin /></RequireRole>} />
               <Route path="/candidates/register" element={<RequireRole roles={['instructor', 'chairperson', 'board_member', 'chief_examiner']}><RegisterCandidate /></RequireRole>} />
@@ -875,6 +900,8 @@ export default function App() {
               <Route path="/admin/accounts" element={<RequireRole roles={['system_admin', 'finance_officer']}><Accounts /></RequireRole>} />
               <Route path="/admin/centre-billing" element={<RequireRole roles={['chairperson', 'board_member', 'system_admin']}><CentreBilling /></RequireRole>} />
               <Route path="/billing/payments" element={<RequireRole roles={['finance_officer', 'system_admin', 'chairperson']}><BillingPayments /></RequireRole>} />
+              <Route path="/billing/vouchers" element={<RequireRole roles={['finance_officer', 'finance_approver', 'system_admin', 'chairperson']}><PaymentVouchers /></RequireRole>} />
+              <Route path="/my-payouts" element={<RequireRole roles={['examiner', 'instructor', 'partner_center_admin', 'master_trainer', 'instructor_trainer', 'examiner_trainer', 'finance_officer', 'system_admin', 'chairperson']}><MyPayouts /></RequireRole>} />
               <Route path="/store" element={<RequireRole roles={['instructor', 'partner_center_admin', 'examiner']}><Store /></RequireRole>} />
               <Route path="/admin/store" element={<RequireRole roles={['system_admin', 'chairperson', 'board_member']}><StoreAdmin /></RequireRole>} />
               <Route path="/admin/store-products" element={<RequireRole roles={['system_admin', 'finance_officer']}><StoreProducts /></RequireRole>} />
