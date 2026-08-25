@@ -15,7 +15,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import CheckpointBar from '../components/CheckpointBar';
+import SessionProcessOverview, { ProcessOverview } from '../components/SessionProcessOverview';
 import '../styles/admin.css';
+
+interface FinancialFlag {
+  reconciled: boolean;
+  has_bonus: boolean;
+  payouts_pending: number;
+}
 
 interface TrackerRow {
   session_id: string;
@@ -166,6 +173,35 @@ export default function MySessions() {
   // Per-session audit trail (governance only — returns empty for others).
   const [audit, setAudit] = useState<Record<string, AuditEvent[]>>({});
 
+  // Finance-governance overlay. list_session_financial_flags() returns rows only
+  // for the finance tier (FO / finance_approver / chairperson / sysadmin /
+  // chief_examiner); empty for everyone else — so a non-empty map == finance view.
+  const [flags, setFlags] = useState<Record<string, FinancialFlag>>({});
+  const [overview, setOverview] = useState<Record<string, ProcessOverview | null>>({});
+  const [overviewLoad, setOverviewLoad] = useState<Record<string, 'loading' | 'ready' | 'error'>>({});
+  const financialGov = useMemo(() => Object.keys(flags).length > 0, [flags]);
+
+  const fetchFlags = useCallback(async () => {
+    const { data, error } = await supabase.rpc('list_session_financial_flags');
+    if (error) return; // not finance tier → leave empty
+    const map: Record<string, FinancialFlag> = {};
+    for (const r of (data ?? []) as (FinancialFlag & { session_id: string })[]) {
+      map[r.session_id] = { reconciled: r.reconciled, has_bonus: r.has_bonus, payouts_pending: r.payouts_pending };
+    }
+    setFlags(map);
+  }, []);
+
+  const fetchOverview = useCallback(async (sessionId: string) => {
+    setOverviewLoad((m) => ({ ...m, [sessionId]: 'loading' }));
+    const { data, error } = await supabase.rpc('get_session_process_overview', { _session_id: sessionId });
+    if (error) {
+      setOverviewLoad((m) => ({ ...m, [sessionId]: 'error' }));
+      return;
+    }
+    setOverview((m) => ({ ...m, [sessionId]: (data ?? null) as ProcessOverview | null }));
+    setOverviewLoad((m) => ({ ...m, [sessionId]: 'ready' }));
+  }, []);
+
   const fetchCerts = useCallback(async (sessionId: string) => {
     setCertLoad((m) => ({ ...m, [sessionId]: 'loading' }));
     const { data, error } = await supabase.rpc('list_session_certificates', { _session_id: sessionId });
@@ -188,6 +224,7 @@ export default function MySessions() {
       const next = cur === sessionId ? null : sessionId;
       if (next && certs[sessionId] === undefined) fetchCerts(sessionId);
       if (next && audit[sessionId] === undefined) fetchAudit(sessionId);
+      if (next && financialGov && overview[sessionId] === undefined) fetchOverview(sessionId);
       return next;
     });
   }
@@ -220,7 +257,8 @@ export default function MySessions() {
 
   useEffect(() => {
     fetchSessions();
-  }, [fetchSessions]);
+    fetchFlags();
+  }, [fetchSessions, fetchFlags]);
 
   // Governance sees rows that are neither booked-by-me nor assigned-to-me → "all sessions".
   const isGovernanceView = useMemo(
@@ -327,6 +365,7 @@ export default function MySessions() {
             .mas-sessions-tracker tbody tr[data-clickable="1"]:hover { background: #f5f8fc; }
             .mas-sessions-tracker tbody tr.is-open { background: #eef3fb; }
             .mas-weather-sub { color: #b4690e; font-weight: 600; }
+            .mas-recon-pill { background: #dff3e6; color: #0d5928; font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
             .mas-reschedule-fields { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: flex-end; }
             .mas-reschedule-fields label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; }
             .mas-reschedule-fields input { font: inherit; padding: 0.35rem 0.45rem; border: 1px solid #e3e7ee; border-radius: 6px; }
@@ -385,6 +424,16 @@ export default function MySessions() {
                             ↻ Rescheduled{row.reschedule_count > 1 ? ` ×${row.reschedule_count}` : ''} (weather)
                           </span>
                         )}
+                        {financialGov && flags[row.session_id]?.reconciled && (
+                          <span className="mas-recon-pill" style={{ display: 'inline-block', marginTop: '0.3rem' }}>
+                            ✓ Reconciled
+                          </span>
+                        )}
+                        {financialGov && (flags[row.session_id]?.payouts_pending ?? 0) > 0 && (
+                          <span className="mas-cell-sub" style={{ display: 'block', color: '#7a5b00' }}>
+                            {flags[row.session_id].payouts_pending} voucher{flags[row.session_id].payouts_pending > 1 ? 's' : ''} pending
+                          </span>
+                        )}
                       </td>
                       <td className="mas-num">{row.candidate_count}</td>
                       <td className="mas-cell-strong">{row.receipt_no ?? '—'}</td>
@@ -395,6 +444,20 @@ export default function MySessions() {
                       <tr className="mas-table-detailrow" onClick={(e) => e.stopPropagation()}>
                         <td colSpan={6}>
                           <div className="mas-table-detail mas-session-detail">
+                            {financialGov && (
+                              <div style={{ gridColumn: '1 / -1' }}>
+                                <h3 className="mas-detail-heading">Process overview</h3>
+                                {overviewLoad[row.session_id] === 'loading' && (
+                                  <p className="mas-status">Loading process overview…</p>
+                                )}
+                                {overviewLoad[row.session_id] === 'error' && (
+                                  <p className="mas-status mas-status-bad">Couldn’t load the process overview.</p>
+                                )}
+                                {overviewLoad[row.session_id] === 'ready' && overview[row.session_id] && (
+                                  <SessionProcessOverview data={overview[row.session_id]!} />
+                                )}
+                              </div>
+                            )}
                             <div>
                               <h3 className="mas-detail-heading">Booked by</h3>
                               {row.booker_name ? (
