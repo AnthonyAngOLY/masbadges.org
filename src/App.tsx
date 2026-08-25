@@ -59,6 +59,7 @@ import MySessions from './pages/MySessions';
 import BillingPayments from './pages/BillingPayments';
 import PaymentVouchers from './pages/PaymentVouchers';
 import MyPayouts from './pages/MyPayouts';
+import SessionLifecycle from './pages/SessionLifecycle';
 import Enquiries from './pages/Enquiries';
 import WebsiteGuides from './pages/WebsiteGuides';
 import WebsiteContentOverrides from './pages/WebsiteContentOverrides';
@@ -439,6 +440,11 @@ function Sidebar({
   const canVouchers =
     hasRole('finance_officer') || hasRole('finance_approver') ||
     hasRole('system_admin') || hasRole('chairperson');
+  // End-to-end oversight: the roles that already see every session in the
+  // operator tracker, so this never shows less than they have today.
+  const canSessionLifecycle =
+    hasRole('finance_officer') || hasRole('chairperson') || hasRole('system_admin') ||
+    hasRole('board_member') || hasRole('chief_examiner');
   // Anyone who can be paid gets their own payout view.
   const canMyPayouts =
     hasRole('examiner') || hasRole('instructor') || hasRole('partner_center_admin') ||
@@ -473,7 +479,7 @@ function Sidebar({
 
   const assessmentsGroup =
     canRegister || canSchedule || canGrade || canInvitations || canViewCerts || isGovernance || canClaimSlips || canMySessions;
-  const billingGroup = canAccounts || canMyInvoices || canCentreBilling || canManageStore || canStoreProducts || canBilling || canVouchers || canMyPayouts;
+  const billingGroup = canAccounts || canMyInvoices || canCentreBilling || canManageStore || canStoreProducts || canBilling || canVouchers || canMyPayouts || canSessionLifecycle;
   const governanceGroup =
     canManageCentres || canManageMembers || canOnboard || canBlacklist || canManageCourses || canEnquiries || canPartnerApps || canAuditLog || canCentreDirectory;
   const systemGroup =
@@ -598,6 +604,7 @@ function Sidebar({
           <details className="mas-navgroup" open>
             <summary>Billing</summary>
             <div className="mas-navgroup-items">
+              {canSessionLifecycle && <NavLink to="/admin/session-lifecycle" className={navClass}><Icon name="check" /><span>Session lifecycle</span></NavLink>}
               {canAccounts && <NavLink to="/admin/accounts" className={navClass}><Icon name="card" /><span>Session payouts</span></NavLink>}
               {canCentreBilling && <NavLink to="/admin/centre-billing" className={navClass}><Icon name="building" /><span>Centre billing</span></NavLink>}
               {canStoreProducts && <NavLink to="/admin/store-products" className={navClass}><Icon name="grid" /><span>Store products</span></NavLink>}
@@ -691,6 +698,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/billing/payments': 'Invoices & Payments',
   '/billing/vouchers': 'Payment vouchers',
   '/my-payouts': 'My payouts',
+  '/admin/session-lifecycle': 'Session lifecycle',
   '/store': 'Store',
   '/admin/store': 'Store orders',
   '/admin/store-products': 'Store products',
@@ -900,6 +908,7 @@ export default function App() {
               <Route path="/admin/accounts" element={<RequireRole roles={['system_admin', 'finance_officer']}><Accounts /></RequireRole>} />
               <Route path="/admin/centre-billing" element={<RequireRole roles={['chairperson', 'board_member', 'system_admin']}><CentreBilling /></RequireRole>} />
               <Route path="/billing/payments" element={<RequireRole roles={['finance_officer', 'system_admin', 'chairperson']}><BillingPayments /></RequireRole>} />
+              <Route path="/admin/session-lifecycle" element={<RequireRole roles={['finance_officer', 'chairperson', 'system_admin', 'board_member', 'chief_examiner']}><SessionLifecycle /></RequireRole>} />
               <Route path="/billing/vouchers" element={<RequireRole roles={['finance_officer', 'finance_approver', 'system_admin', 'chairperson']}><PaymentVouchers /></RequireRole>} />
               <Route path="/my-payouts" element={<RequireRole roles={['examiner', 'instructor', 'partner_center_admin', 'master_trainer', 'instructor_trainer', 'examiner_trainer', 'finance_officer', 'system_admin', 'chairperson']}><MyPayouts /></RequireRole>} />
               <Route path="/store" element={<RequireRole roles={['instructor', 'partner_center_admin', 'examiner']}><Store /></RequireRole>} />
