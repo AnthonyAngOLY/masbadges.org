@@ -104,6 +104,8 @@ src/
            InviteExaminer, ExaminerGrading, Invitations, AssessmentsOversight,
            PaymentVouchers (/billing/vouchers — money OUT),
            MyPayouts (/my-payouts — payee's own approved/paid vouchers),
+           SessionLifecycle (/admin/session-lifecycle — 11-checkpoint end-to-end
+             process overview per session, incl. money IN and OUT; read-only),
            ExaminerRegistry, Certificates, Accounts, CentreBilling, Store, StoreAdmin,
            InstructorOnboarding, InstructorBlacklist, CourseManagement,
            CentreManagement, Enquiries, RegisterCentre, PartnerApplications,
