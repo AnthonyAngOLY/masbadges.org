@@ -74,12 +74,15 @@ interface AuditEvent {
   created_at: string;
 }
 type Load = 'loading' | 'ready' | 'error';
-type Tab = 'active' | 'awaiting_pickup' | 'completed' | 'closed' | 'cancelled' | 'archived' | 'all';
+type Tab = 'unreconciled' | 'active' | 'awaiting_pickup' | 'completed' | 'closed' | 'cancelled' | 'archived' | 'all';
 
 const TERMINAL = new Set(['completed', 'closed', 'cancelled', 'archived']);
 
 // Which statuses fall under each tab.
+// Status-based tab predicates. 'unreconciled' is NOT here — it depends on the
+// finance flags, not status, so it's handled specially in matchesTab().
 const TAB_MATCH: Record<Tab, (s: string) => boolean> = {
+  unreconciled: () => false,
   active: (s) => ['awaiting_payment', 'open_for_pickup', 'claimed', 'scheduled', 'requested', 'examiner_invited', 'weather_hold'].includes(s),
   awaiting_pickup: (s) => s === 'open_for_pickup',
   completed: (s) => s === 'completed',
@@ -89,6 +92,7 @@ const TAB_MATCH: Record<Tab, (s: string) => boolean> = {
   all: () => true,
 };
 const TAB_LABEL: Record<Tab, string> = {
+  unreconciled: 'Unreconciled',
   active: 'Active',
   awaiting_pickup: 'Awaiting pickup',
   completed: 'Completed',
@@ -97,6 +101,8 @@ const TAB_LABEL: Record<Tab, string> = {
   archived: 'Archived',
   all: 'All',
 };
+// Base (status) tabs shown to everyone. The finance tier additionally gets
+// 'unreconciled' prepended (see visibleTabs in the component).
 const TAB_ORDER: Tab[] = ['active', 'awaiting_pickup', 'completed', 'closed', 'cancelled', 'archived', 'all'];
 
 function prettyDate(s: string | null): string {
@@ -266,13 +272,38 @@ export default function MySessions() {
     [rows],
   );
 
+  // Finance tier additionally sees an "Unreconciled" triage tab up front.
+  const visibleTabs = useMemo<Tab[]>(
+    () => (financialGov ? (['unreconciled', ...TAB_ORDER] as Tab[]) : TAB_ORDER),
+    [financialGov],
+  );
+
+  // 'unreconciled' filters on the finance flag (any status except cancelled —
+  // a cancelled session's outstanding money moves via its refund voucher, which
+  // the FO tracks in the voucher register, not here).
+  const matchesTab = useCallback(
+    (row: TrackerRow, t: Tab): boolean => {
+      if (t === 'unreconciled') {
+        const f = flags[row.session_id];
+        return !!f && !f.reconciled && row.status !== 'cancelled';
+      }
+      return TAB_MATCH[t](row.status);
+    },
+    [flags],
+  );
+
   const counts = useMemo(() => {
     const c = {} as Record<Tab, number>;
-    for (const t of TAB_ORDER) c[t] = rows.filter((r) => TAB_MATCH[t](r.status)).length;
+    for (const t of visibleTabs) c[t] = rows.filter((r) => matchesTab(r, t)).length;
     return c;
-  }, [rows]);
+  }, [rows, visibleTabs, matchesTab]);
 
-  const filtered = useMemo(() => rows.filter((r) => TAB_MATCH[tab](r.status)), [rows, tab]);
+  const filtered = useMemo(() => rows.filter((r) => matchesTab(r, tab)), [rows, tab, matchesTab]);
+
+  // If the selected tab isn't available (e.g. flags loaded/cleared), fall back.
+  useEffect(() => {
+    if (!visibleTabs.includes(tab)) setTab('active');
+  }, [visibleTabs, tab]);
 
   async function cancelSession(row: TrackerRow) {
     setConfirmRow(null);
@@ -336,12 +367,15 @@ export default function MySessions() {
           Refresh
         </button>
         <div className="mas-tabs" role="tablist" style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-          {TAB_ORDER.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t}
               role="tab"
               aria-selected={tab === t}
-              className={tab === t ? 'mas-btn-primary mas-btn-compact' : 'mas-btn-ghost mas-btn-compact'}
+              className={
+                (tab === t ? 'mas-btn-primary mas-btn-compact' : 'mas-btn-ghost mas-btn-compact')
+                + (t === 'unreconciled' ? ' mas-tab-unrecon' : '')
+              }
               onClick={() => setTab(t)}
             >
               {TAB_LABEL[t]} ({counts[t]})
@@ -366,6 +400,8 @@ export default function MySessions() {
             .mas-sessions-tracker tbody tr.is-open { background: #eef3fb; }
             .mas-weather-sub { color: #b4690e; font-weight: 600; }
             .mas-recon-pill { background: #dff3e6; color: #0d5928; font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+            .mas-btn-ghost.mas-tab-unrecon { color: #7a5b00; box-shadow: inset 0 0 0 1px #f0dcae; }
+            .mas-btn-ghost.mas-tab-unrecon:hover { background: #fdf4e3; }
             .mas-reschedule-fields { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: flex-end; }
             .mas-reschedule-fields label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; }
             .mas-reschedule-fields input { font: inherit; padding: 0.35rem 0.45rem; border: 1px solid #e3e7ee; border-radius: 6px; }
