@@ -202,9 +202,14 @@ The public site may read ONLY these (security-definer; minors never exposed):
 - `partner_center_directory` (**view**) — recognised centres, safe columns.
 - `verify_certificate(serial)` (**function**, not a view — anti-enumeration):
   serial, level, centre, issue date, valid/revoked; **never a child's name**.
-- `instructor_directory` (**view**) — **opt-in**; `full_name, state, centre_name,
-  independent`. No contact PII. Backed by `memberships.public_listing` +
-  `set_my_instructor_listing(bool)` / `get_my_instructor_listing()`.
+- `instructor_directory` (**view**) — `profile_id, full_name, state,
+  partner_center_id, centre_name`. No contact PII. **NOT opt-in as built.** The
+  committed definition (`20260622290000_instructor_directory_blacklist.sql`)
+  lists every active, non-blacklisted instructor with no consent filter; there is
+  no `memberships.public_listing` column in any migration, and the two RPCs the
+  UI calls to drive an opt-in toggle do not exist in the live database at all
+  (confirmed 2026-09-04). See Known issues #2 — do not describe this as opt-in
+  until it is.
 - `public_courses` (**view**) — Courses page.
 - `list_states()` RPC; `submit_enquiry(...)` RPC (Contact form).
 
@@ -238,39 +243,62 @@ from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public' and p.proname = 'the_function_name';
 ```
 
-Known drift as of 2026-09-04 — the frontend calls these, git has no creating
-migration for them:
+**Verified against the live database on 2026-09-04** (Part 1 of the dump script,
+run against `masbadges-web`): **33 functions and 10 tables exist live with no
+creating migration in git.** Rerun `node scripts/check-schema-drift.mjs` for the
+subset reachable from `src/`; the full list below needs the live inventory,
+because a dozen of these are only ever called from inside another function.
 
-- **Centre-recognition billing (entirely untracked):** `create_centre_invoice`,
-  `record_centre_payment`, `mark_centre_invoice_paid`, `list_centre_billing`,
-  `list_centre_fee_catalog`, `list_centres_due_renewal`, `lapse_expired_centres`;
-  tables `centre_invoices`, `centre_invoice_items`, `centre_fee_catalog`.
-- **Store:** `list_store_products`, `upsert_store_product`, `mark_store_order_paid`,
-  `record_store_payment`, `fulfil_store_order`; tables `store_products`,
-  `store_orders`, `store_order_items` (referenced by later migrations, created by
-  none).
-- **Finance / invoices:** `get_finance_settings` + table `org_finance_settings`.
-  Also `list_billing_invoices` and `list_my_invoices` — these *do* have migrations,
-  but the deployed versions return **extra columns** the files don't
-  (`last_payment_*` and `session_status` respectively). Do not regenerate them
-  from the files.
-- **Sessions:** `preview_roster_swimmers`, `weather_hold_session`,
-  `reschedule_weather_session`.
-- **Accounts / directory:** `admin_create_account_with_password`,
-  `find_profile_by_email`, `invite_centre_admin`, `list_memberships`,
-  `list_states`, `get_my_instructor_listing`, `set_my_instructor_listing`.
-- Also untracked: `quiz_attempts` (onboarding quiz).
+Untracked functions (33):
+`_session_reconciled` · `admin_create_account_with_password` · `can_bill_centres` ·
+`can_buy_store` · `can_manage_store` · `create_centre_invoice` ·
+`find_profile_by_email` · `fulfil_store_order` · `get_centre_payments` ·
+`get_finance_settings` · `get_session_process_overview` · `get_store_order_items` ·
+`grant_centre_admin_on_signup` · `invite_centre_admin` · `lapse_expired_centres` ·
+`list_centre_billing` · `list_centre_fee_catalog` · `list_centres_due_renewal` ·
+`list_memberships` · `list_my_centre_admin_overview` ·
+`list_session_financial_flags` · `list_states` · `list_store_products` ·
+`log_account_event` · `mark_centre_invoice_paid` · `mark_store_order_paid` ·
+`place_store_order` · `preview_roster_swimmers` · `record_centre_payment` ·
+`record_store_payment` · `reschedule_weather_session` · `upsert_store_product` ·
+`weather_hold_session`
+
+Untracked tables (10): `centre_fee_catalog` · `centre_invitations` ·
+`centre_invoice_items` · `centre_invoices` · `centre_payments` ·
+`org_finance_settings` · `store_order_items` · `store_orders` · `store_payments` ·
+`store_products`
+
+Committed but NOT live — these migrations were applied and later undone, or never
+applied at all: functions `build_session_invoice`, `record_examiner_payout`,
+`record_invoice_payment`; table `assessment_fees`. Do not assume they work.
+
+Deployed-but-different: `list_billing_invoices` and `list_my_invoices` both have
+migrations, but the live versions return extra columns the files do not declare
+(`last_payment_*` and `session_status`). Never regenerate them from the files.
+
+Called by the frontend but **absent from the live database entirely**:
+`get_my_instructor_listing`, `set_my_instructor_listing` (see Known issues #2).
 
 `supabase/migrations/README.md`'s "Applied so far" table stops at 6 files out of
 119 — ignore it.
 
 ### Three separate money subsystems (do not wire across them)
 
-1. **Assessment billing** — `invoices` / `invoice_items` / `payments` / `receipts`,
-   driven by assessment sessions. Money IN from instructors/centres.
-2. **Centre-recognition billing** — `centre_invoices` / `centre_invoice_items`,
-   the untracked RPCs above, `CentreBilling.tsx`. Annual recognition fees.
-3. **Store orders** — `store_orders` / `store_order_items` / `store_products`.
+Each has its OWN payments table. Confirmed live 2026-09-04:
+
+1. **Assessment billing** — `invoices` / `invoice_items` / **`payments`** /
+   `receipts` / `invoice_counter` / `receipt_counter`, driven by assessment
+   sessions. Money IN from instructors/centres. The only one fully in git.
+2. **Centre-recognition billing** — `centre_invoices` / `centre_invoice_items` /
+   **`centre_payments`** / `centre_fee_catalog` / `centre_invitations`, the
+   untracked RPCs above, `CentreBilling.tsx`. Annual recognition fees. Entirely
+   untracked — every table and function created in the SQL editor.
+3. **Store orders** — `store_orders` / `store_order_items` / **`store_payments`** /
+   `store_products`, `next_store_order_no()`. Also entirely untracked.
+
+So `record_payment`, `record_centre_payment` and `record_store_payment` write to
+three different tables. Reading one and assuming the others match is how you
+produce a total that is wrong and looks right.
 
 They look alike and are not. A change in one does not belong in another.
 
@@ -284,27 +312,38 @@ vouchers only** — not amounts expected from `payout_schedule`.
 
 ## Known issues / next tasks
 
-1. **Schema drift** (see the warning above) — the highest-risk item. ~20 RPCs and
-   ~6 tables the frontend depends on exist only in the live database. Capture them
-   into migration files from `pg_get_functiondef` / `pg_dump` output.
-2. **Two live public centre directories.** `/directory` (`Directory.tsx`, reads the
+1. **Schema drift** (see the warning above) — the highest-risk item. Verified
+   2026-09-04: **33 functions and 10 tables** exist only in the live database.
+   Capture them into migration files from `pg_get_functiondef` output using
+   `supabase/diagnostics/dump_live_schema.sql`.
+2. **The instructor opt-in toggle is broken in production.** `AccountSettings.tsx`
+   (lines 43, 59) calls `get_my_instructor_listing()` and
+   `set_my_instructor_listing(_on)`; neither function exists in the live database.
+   The read discards its error, so the switch renders **off for every instructor**
+   regardless of reality; clicking it surfaces a raw PostgREST "function not found"
+   error. Worse, the shipped view has no consent filter, so `/instructors` may be
+   publishing every active instructor's name, state and centre without opt-in.
+   Fix needs a migration (add the consent column, gate the view, create both
+   RPCs) — check the live view definition first, it may already differ.
+3. **Two live public centre directories.** `/directory` (`Directory.tsx`, reads the
    `partner_center_directory` view, 175 lines) and `/find-a-centre`
    (`PublicCentreDirectory.tsx`, reads `list_published_centres()`, richer: hero
    images, classification badges, expandable cards, 389 lines). The nav points at
    `/directory`; `/find-a-centre` is reachable only by URL. Decide which survives,
    then remove the other route, page and nav entry.
-3. **L7 Dolphin badge** has a faint purple rim (cut from a purple PDF panel; the
+4. **L7 Dolphin badge** has a faint purple rim (cut from a purple PDF panel; the
    artwork sheet only has L1–L6). Re-cut cleanly only if the original Dolphin
    artwork file is added to the repo.
-4. **`PublicCentreDirectory.tsx` styles itself from an inline `STYLES` constant**
+5. **`PublicCentreDirectory.tsx` styles itself from an inline `STYLES` constant**
    instead of `theme.css`. If the page survives item 2, fold its CSS into
    `theme.css` like every other page.
-5. **Deferred (portal):** online card payment (provider TBD), PDF/QR hardcopy
+6. **Deferred (portal):** online card payment (provider TBD), PDF/QR hardcopy
    certs, calendar module, real Storage upload for payment proofs.
 
 **Resolved — do not "fix" these again:** the duplicate `/instructors` route (gone;
-only `Instructors.tsx` remains), the instructor opt-in toggle (wired in
-`AccountSettings.tsx`), and hover-only mobile nav dropdowns (tap-to-expand shipped).
+only `Instructors.tsx` remains) and hover-only mobile nav dropdowns (tap-to-expand
+shipped). The instructor opt-in toggle is **not** resolved despite the UI being
+wired — see Known issues #2.
 
 ---
 
