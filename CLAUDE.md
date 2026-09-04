@@ -32,10 +32,12 @@ depend on internals of, the portal beyond the published read-only surfaces.
 - **Env vars** (set in Netlify; needed for a successful build): `VITE_SUPABASE_URL`,
   `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY_DSN`, `VITE_PORTAL_LOGIN_URL`.
 
-Check `package.json` for exact scripts. Typical:
+Scripts (`package.json` — there is no test or lint script):
 - Install: `npm ci` (or `npm install`)
-- **Build (must pass before any PR):** `npm run build` → outputs `dist/`
-- Dev: `npm run dev`
+- **Build (must pass before any PR):** `npm run build` → outputs `dist/`.
+  `prebuild` runs `scripts/generate-sitemap.mjs`, which rewrites
+  `public/sitemap.xml` — expect that file to change on any build.
+- Dev: `npm run dev` · Preview: `npm run preview`
 
 **Always run the build and fix type/import errors before opening a PR.** A broken
 build blocks Netlify; verifying locally on the runner prevents a red deploy.
@@ -52,16 +54,21 @@ build blocks Netlify; verifying locally on the runner prevents a red deploy.
 3. **Read before you edit.** Open the real file; match its existing structure,
    imports, and class names. Do not invent file contents.
 4. **Check for duplicates before creating a page/route.** Search `src/App.tsx`
-   routes and `src/pages/` first — this repo already shipped a duplicate
-   `/instructors` route from a page being recreated blind. Reuse, don't duplicate.
-5. **`src/App.tsx` is the spine** (routes + `PublicLayout` + nav + scroll JS).
-   When touching routing/nav, edit it last and re-verify the build.
+   routes and `src/pages/` first. This repo has already shipped duplicates twice
+   from pages being recreated blind (a since-removed second `/instructors`; the
+   still-live `/directory` vs `/find-a-centre` pair). Reuse, don't duplicate.
+5. **`src/App.tsx` is the spine** — routes, `PublicLayout` (public nav, header
+   search, fixed-header scroll JS) and `AppLayout` (portal shell + role-gated
+   sidebar). ~950 lines. When touching routing/nav, edit it last and re-verify
+   the build.
 6. **Migrations are applied by hand.** You may *write* SQL migration files
    (`supabase/…` or wherever the repo keeps them, named `YYYYMMDDHHMMSS_name.sql`),
    but **Anthony applies them in the Supabase SQL editor** — they are NOT auto-run.
    Never assume a schema change is live; note in the PR that the migration must be
    applied. The SQL editor runs as superuser (`auth.uid()` is null there), so
    role-gated functions can't be exercised in it; a `CREATE` returning no rows = ok.
+   **The folder is not a faithful record of the live database** — read
+   "⚠️ The migrations folder is NOT the live schema" below before any DB work.
 7. **Never commit secrets** or print env values. No `.env` files in commits.
 8. **Don't reformat unrelated code.** Keep diffs scoped to the task.
 
@@ -81,37 +88,65 @@ build blocks Netlify; verifying locally on the runner prevents a red deploy.
 
 ```
 src/
-  App.tsx              routes + PublicLayout (nav, fixed-header scroll JS). Spine.
-  lib/supabase.ts      Supabase client
-  lib/types.ts         MALAYSIAN_STATES, DirectoryCenter, etc.
-  styles/
-    theme.css          ~1340 lines, AUTHORITATIVE, loaded LAST (its rules win). Public + portal.
-    public.css         public base (fonts, .mas-page, .mas-main, .mas-topnav base)
-    admin.css          portal forms/lists
-    shell.css          portal shell
+  App.tsx        THE SPINE (~950 lines). Route table + PublicLayout (public nav,
+                 header search, fixed-header scroll JS) + AppLayout (portal shell,
+                 role-gated sidebar). The route table is the only authoritative
+                 list of pages — read it, don't trust any list including this one.
+  components/    AttentionDot · CheckpointBar · ContactForm · EditableText ·
+                 ErrorBoundary · Icon · Protected · RequireRole · ScrollToTop ·
+                 UpdateBanner
+  lib/
+    supabase.ts        Supabase client
+    auth.tsx           session + hasRole() context behind Protected / RequireRole
+    types.ts           MALAYSIAN_STATES, DirectoryCenter, etc.
+    levels.ts          level helpers used by the portal
+    contentOverrides.tsx  admin-editable copy (EditableText ↔ content_overrides)
   data/
-    levels.ts          Level{level,key,name,color,badge,blurb,outcome}; LEVELS; BRAND_TEAL
-    faqs.ts            FAQ_CATEGORIES (order: general,parents,instructors,centres,examiners)
-    guides.ts          GUIDES (8 narrative guides)
-  pages/   PUBLIC: Home, TheProgramme (/the-programme), Directory (/directory),
-           ForCentres (/for-centres), ForParents (/for-parents), Courses (/courses),
-           Contact (/contact), FAQ (/faq), Guides (/guides),
-           GuideDetail (/guides/:slug), Instructors (/instructors),
-           InstructorDirectory (DUPLICATE /instructors — see Known issues),
-           Verify (/verify, /verify/:serial), Privacy, Terms, Safeguarding
-           PORTAL (role-gated): Dashboard, AccountSettings (/account), ClaimCandidate,
-           MyInvoices, CentreAdmin, RegisterCandidate, ClaimSlips, CreateSession,
-           InviteExaminer, ExaminerGrading, Invitations, AssessmentsOversight,
-           PaymentVouchers (/billing/vouchers — money OUT),
-           MyPayouts (/my-payouts — payee's own approved/paid vouchers),
-           SessionLifecycle (/admin/session-lifecycle — 11-checkpoint end-to-end
-             process overview per session, incl. money IN and OUT; read-only),
-           ExaminerRegistry, Certificates, Accounts, CentreBilling, Store, StoreAdmin,
-           InstructorOnboarding, InstructorBlacklist, CourseManagement,
-           CentreManagement, Enquiries, RegisterCentre, PartnerApplications,
-           RoleRegistry, MembershipManagement, Login, Signup
+    levels.ts      Level{level,key,name,color,badge,blurb,outcome}; LEVELS; BRAND_TEAL
+    faqs.ts        FAQ_CATEGORIES (general, parents, instructors, centres, examiners)
+    searchIndex.ts static index behind the header search → /search
+    NOTE: guides.ts is RETIRED. Guides are DB-backed (guide_cards / guide_sections),
+    read via list_public_guides(), authored at /admin/website/guides.
+  styles/    theme.css 1853 lines — AUTHORITATIVE, loaded LAST (its rules win),
+             covers public + portal · admin.css 760 (portal forms/lists + the
+             mas-table family) · shell.css 272 (portal shell) · public.css 160
+             (public base) · home.css 108 · site.css 96 · auth.css 71
+  pages/     70 files. See the route table in App.tsx (~lines 865–945).
+scripts/generate-sitemap.mjs   runs on `prebuild` → public/sitemap.xml
 public/badges/level-1..7.png   official badge art (512px, transparent)
+supabase/migrations/*.sql      119 files, applied BY HAND — and NOT a complete
+                               record of the live schema (see the drift warning).
 ```
+
+**Public routes:** `/` · `/the-programme` · `/for-parents` · `/for-centres` ·
+`/directory` · `/find-a-centre` · `/apply-partner-centre` · `/courses` ·
+`/instructors` · `/guides` + `/guides/:slug` · `/faq` · `/contact` · `/verify`
++ `/verify/:serial` · `/search` · `/privacy` · `/terms` · `/safeguarding`.
+
+**Portal routes** (every one wrapped in `Protected` or `RequireRole` — read the
+route for the exact role list; these groupings are for orientation only):
+
+- *Everyone signed in:* `/dashboard` · `/account` · `/onboarding` · `/claim` ·
+  `/parent` · `/account/resources` · `/my-application` · `/certificate/:serial`
+- *Candidates & sessions:* `/candidates/register` · `/candidates/claim-slips` ·
+  `/assessments/schedule` (RosterBooking) · `/my-sessions` (MySessions — holds the
+  6-step session checker) · `/assessments/grade` · `/assessments/invitations` ·
+  `/assessments/examiners` · `/registry/swimmers`
+- *Certificates:* `/certificates` · `/certificates/issue`
+- *Money IN:* `/invoices` (MyInvoices) · `/billing/payments` (BillingPayments) ·
+  `/admin/centre-billing` (CentreBilling) · printables
+  `/billing/invoice/:id`, `/billing/receipt/:id`
+- *Money OUT:* `/billing/vouchers` (PaymentVouchers) · `/my-payouts` (MyPayouts) ·
+  printable `/billing/voucher/:id`
+- *Oversight:* `/admin/session-lifecycle` (SessionLifecycle — 11-checkpoint
+  end-to-end view per session, money IN and OUT, read-only) · `/admin/audit-log`
+- *Store:* `/store` · `/admin/store` (orders) · `/admin/store-products` (catalogue)
+- *Admin:* `/centre` · `/centres/register` · `/admin/centres` ·
+  `/admin/centre-directory` · `/admin/partner-applications` · `/admin/instructors` ·
+  `/admin/instructor-blacklist` · `/admin/courses` · `/admin/enquiries` ·
+  `/admin/memberships` · `/admin/role-registry` · `/admin/settings` ·
+  `/admin/website/guides` · `/admin/website/content-overrides`
+- *Unauthenticated:* `/login` · `/claim-signup` · `/auth/callback` · `/set-password`
 
 ---
 
@@ -148,10 +183,16 @@ with hysteresis (shrink >80px, expand <24px) + rAF throttle. **Do not return the
 header to `position: sticky`** or make the content offset depend on header height.
 
 ### Nav (in `App.tsx` PublicLayout)
-The programme · Find a centre ▾ (Browse directory, Become a partner centre) ·
-Instructors · Guides ▾ (All guides + each guide) · Courses · FAQ.
-Pure-CSS hover/focus dropdowns; collapse to parent links on mobile (hover-only —
-a known limitation). "Portal login" button → `VITE_PORTAL_LOGIN_URL ?? '/login'`.
+The programme · Find a centre ▾ (Browse the directory → `/directory`, Become a
+partner centre → `/for-centres`) · Instructors · Guides ▾ (All guides + the eight
+guide slugs, hard-coded in the nav even though guide bodies are DB-backed) ·
+Courses · FAQ. Plus a header search (desktop expanding input + a mobile form) that
+submits to `/search`, backed by `data/searchIndex.ts`.
+
+Dropdowns open on hover/focus on desktop **and** on tap on mobile — each has a
+`.mas-submenu-toggle` button driving `openSection` state (`is-open` class). Adding
+a nav dropdown means adding the toggle button too; don't ship a hover-only one.
+"Portal login" button → `VITE_PORTAL_LOGIN_URL ?? '/login'`.
 
 ---
 
@@ -171,9 +212,10 @@ The public site may read ONLY these (security-definer; minors never exposed):
 expose a minor's name; directories are opt-in and contain no contact PII. Don't add
 public surfaces that leak candidate identity.
 
-Roles (`membership_role` enum): board_member, coaching_panel, chairperson,
-chief_examiner, examiner_trainer, examiner, instructor, partner_center_admin,
-system_admin, instructor_trainer, finance_officer, finance_approver.
+Roles (`membership_role` enum, in the order they were added): board_member,
+coaching_panel, chairperson, chief_examiner, examiner_trainer, examiner,
+instructor, partner_center_admin, system_admin, instructor_trainer,
+**master_trainer**, finance_officer, finance_approver.
 `has_role()` has a `system_admin` wildcard. Money out uses separation of duties:
 finance_officer prepares and pays a voucher, finance_approver (or chairperson)
 approves it — never the same person on both legs.
@@ -182,21 +224,87 @@ a candidate they instruct.
 
 ---
 
+## ⚠️ The migrations folder is NOT the live schema
+
+`supabase/migrations/` is applied by hand, and a lot of schema was created or
+edited **directly in the Supabase SQL editor and never written back to git**. Treat
+the folder as *partial history*, never as ground truth.
+
+**Before touching any RPC or table, dump the live definition** and work from that:
+
+```sql
+select p.proname, pg_get_functiondef(p.oid)
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'the_function_name';
+```
+
+Known drift as of 2026-09-04 — the frontend calls these, git has no creating
+migration for them:
+
+- **Centre-recognition billing (entirely untracked):** `create_centre_invoice`,
+  `record_centre_payment`, `mark_centre_invoice_paid`, `list_centre_billing`,
+  `list_centre_fee_catalog`, `list_centres_due_renewal`, `lapse_expired_centres`;
+  tables `centre_invoices`, `centre_invoice_items`, `centre_fee_catalog`.
+- **Store:** `list_store_products`, `upsert_store_product`, `mark_store_order_paid`,
+  `record_store_payment`, `fulfil_store_order`; tables `store_products`,
+  `store_orders`, `store_order_items` (referenced by later migrations, created by
+  none).
+- **Finance / invoices:** `get_finance_settings` + table `org_finance_settings`.
+  Also `list_billing_invoices` and `list_my_invoices` — these *do* have migrations,
+  but the deployed versions return **extra columns** the files don't
+  (`last_payment_*` and `session_status` respectively). Do not regenerate them
+  from the files.
+- **Sessions:** `preview_roster_swimmers`, `weather_hold_session`,
+  `reschedule_weather_session`.
+- **Accounts / directory:** `admin_create_account_with_password`,
+  `find_profile_by_email`, `invite_centre_admin`, `list_memberships`,
+  `list_states`, `get_my_instructor_listing`, `set_my_instructor_listing`.
+- Also untracked: `quiz_attempts` (onboarding quiz).
+
+`supabase/migrations/README.md`'s "Applied so far" table stops at 6 files out of
+119 — ignore it.
+
+### Three separate money subsystems (do not wire across them)
+
+1. **Assessment billing** — `invoices` / `invoice_items` / `payments` / `receipts`,
+   driven by assessment sessions. Money IN from instructors/centres.
+2. **Centre-recognition billing** — `centre_invoices` / `centre_invoice_items`,
+   the untracked RPCs above, `CentreBilling.tsx`. Annual recognition fees.
+3. **Store orders** — `store_orders` / `store_order_items` / `store_products`.
+
+They look alike and are not. A change in one does not belong in another.
+
+`payments.direction` is `'inbound'` | `'payout'` — **there is no `'outbound'`**.
+A refund is `direction = 'payout'` with `note = 'refund'` (no separate table).
+
+The shipped `/admin/session-lifecycle` page defines "money due out" as **raised
+vouchers only** — not amounts expected from `payout_schedule`.
+
+---
+
 ## Known issues / next tasks
 
-1. **Duplicate `/instructors` route** in `App.tsx`: both `Instructors` (reads the
-   opt-in `instructor_directory` view) and a pre-existing `InstructorDirectory`.
-   Decide which to keep, remove the other route + import. Read both pages first.
-2. **Instructor opt-in toggle** not wired to UI. Add a labelled switch on
-   `AccountSettings` (`/account`): initialise from `get_my_instructor_listing()`,
-   write via `set_my_instructor_listing(_on)`. Directory is empty until instructors
-   opt in (correct default).
+1. **Schema drift** (see the warning above) — the highest-risk item. ~20 RPCs and
+   ~6 tables the frontend depends on exist only in the live database. Capture them
+   into migration files from `pg_get_functiondef` / `pg_dump` output.
+2. **Two live public centre directories.** `/directory` (`Directory.tsx`, reads the
+   `partner_center_directory` view, 175 lines) and `/find-a-centre`
+   (`PublicCentreDirectory.tsx`, reads `list_published_centres()`, richer: hero
+   images, classification badges, expandable cards, 389 lines). The nav points at
+   `/directory`; `/find-a-centre` is reachable only by URL. Decide which survives,
+   then remove the other route, page and nav entry.
 3. **L7 Dolphin badge** has a faint purple rim (cut from a purple PDF panel; the
    artwork sheet only has L1–L6). Re-cut cleanly only if the original Dolphin
    artwork file is added to the repo.
-4. **Mobile nav dropdowns** are hover-only. Optional: add tap-to-expand JS.
+4. **`PublicCentreDirectory.tsx` styles itself from an inline `STYLES` constant**
+   instead of `theme.css`. If the page survives item 2, fold its CSS into
+   `theme.css` like every other page.
 5. **Deferred (portal):** online card payment (provider TBD), PDF/QR hardcopy
    certs, calendar module, real Storage upload for payment proofs.
+
+**Resolved — do not "fix" these again:** the duplicate `/instructors` route (gone;
+only `Instructors.tsx` remains), the instructor opt-in toggle (wired in
+`AccountSettings.tsx`), and hover-only mobile nav dropdowns (tap-to-expand shipped).
 
 ---
 
