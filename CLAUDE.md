@@ -203,13 +203,13 @@ The public site may read ONLY these (security-definer; minors never exposed):
 - `verify_certificate(serial)` (**function**, not a view — anti-enumeration):
   serial, level, centre, issue date, valid/revoked; **never a child's name**.
 - `instructor_directory` (**view**) — `profile_id, full_name, state,
-  partner_center_id, centre_name`. No contact PII. **NOT opt-in as built.** The
-  committed definition (`20260622290000_instructor_directory_blacklist.sql`)
-  lists every active, non-blacklisted instructor with no consent filter; there is
-  no `memberships.public_listing` column in any migration, and the two RPCs the
-  UI calls to drive an opt-in toggle do not exist in the live database at all
-  (confirmed 2026-09-04). See Known issues #2 — do not describe this as opt-in
-  until it is.
+  partner_center_id, centre_name`. No contact PII. **There is no opt-in
+  mechanism, and the view is currently empty.** Verified against live
+  2026-09-04: `memberships` has no `public_listing` column, the two RPCs the UI
+  calls to drive a consent toggle do not exist, and the view returns **0 rows**
+  against 3 active instructor memberships. So nothing is being published without
+  consent — but nothing can be published at all, and no instructor can opt in.
+  The whole feature is inert. See Known issues #2.
 - `public_courses` (**view**) — Courses page.
 - `list_states()` RPC; `submit_enquiry(...)` RPC (Contact form).
 
@@ -316,15 +316,23 @@ vouchers only** — not amounts expected from `payout_schedule`.
    2026-09-04: **33 functions and 10 tables** exist only in the live database.
    Capture them into migration files from `pg_get_functiondef` output using
    `supabase/diagnostics/dump_live_schema.sql`.
-2. **The instructor opt-in toggle is broken in production.** `AccountSettings.tsx`
-   (lines 43, 59) calls `get_my_instructor_listing()` and
-   `set_my_instructor_listing(_on)`; neither function exists in the live database.
-   The read discards its error, so the switch renders **off for every instructor**
-   regardless of reality; clicking it surfaces a raw PostgREST "function not found"
-   error. Worse, the shipped view has no consent filter, so `/instructors` may be
-   publishing every active instructor's name, state and centre without opt-in.
-   Fix needs a migration (add the consent column, gate the view, create both
-   RPCs) — check the live view definition first, it may already differ.
+2. **The public instructor directory is inert end to end.** Three separate gaps,
+   all verified against live on 2026-09-04:
+   - `AccountSettings.tsx` (lines 43, 59) calls `get_my_instructor_listing()` and
+     `set_my_instructor_listing(_on)`. **Neither function exists.** The read
+     discards its error, so the switch renders **off for every instructor**
+     regardless of reality; clicking it surfaces a raw PostgREST "function not
+     found" error.
+   - `memberships` has **no `public_listing` column**, so there is nowhere for a
+     consent flag to live even if the RPCs existed.
+   - `instructor_directory` returns **0 rows** against 3 active instructor
+     memberships, so `/instructors` shows an empty list to the public.
+   No privacy exposure — nobody is published who did not consent, because nobody
+   is published at all. But the feature does not work in any direction. Fixing it
+   needs one migration (consent column + gated view + both RPCs) and a one-line
+   frontend fix to stop swallowing the read error. **Get the live view definition
+   first** — the 0 rows are not explained by the committed file, so the deployed
+   view likely differs from it.
 3. **Two live public centre directories.** `/directory` (`Directory.tsx`, reads the
    `partner_center_directory` view, 175 lines) and `/find-a-centre`
    (`PublicCentreDirectory.tsx`, reads `list_published_centres()`, richer: hero
