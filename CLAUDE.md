@@ -31,6 +31,10 @@ depend on internals of, the portal beyond the published read-only surfaces.
 - **Deploy:** Netlify Pro, auto-deploys on merge to `main`. Do not add deploy steps.
 - **Env vars** (set in Netlify; needed for a successful build): `VITE_SUPABASE_URL`,
   `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY_DSN`, `VITE_PORTAL_LOGIN_URL`.
+  The publishable key is accepted under either name — `VITE_SUPABASE_ANON_KEY`
+  or `VITE_SUPABASE_PUBLISHABLE_KEY` (`env.example` and the sitemap script use
+  the latter). With neither set, the app renders a "not configured" notice
+  naming the missing variables instead of a blank page.
 
 Scripts (`package.json` — there is no test or lint script):
 - Install: `npm ci` (or `npm install`)
