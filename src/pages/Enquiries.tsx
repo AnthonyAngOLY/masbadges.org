@@ -61,6 +61,7 @@ export default function Enquiries() {
   const [filter, setFilter] = useState<Status | 'all'>('all');
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [actError, setActError] = useState<string | null>(null);
 
   // Conversion state — which enquiry is being converted, and applicant search
   const [convertingId, setConvertingId] = useState<string | null>(null);
@@ -80,8 +81,10 @@ export default function Enquiries() {
 
   async function act(id: string, status: Status) {
     setBusyId(id);
-    await supabase.rpc('set_enquiry_status', { _id: id, _status: status, _note: notes[id] ?? null });
+    setActError(null);
+    const { error } = await supabase.rpc('set_enquiry_status', { _id: id, _status: status, _note: notes[id] ?? null });
     setBusyId(null);
+    if (error) { setActError(error.message); return; }
     load();
   }
 
@@ -170,6 +173,7 @@ export default function Enquiries() {
         ))}
       </div>
 
+      {actError && <p className="mas-status mas-status-bad">{actError}</p>}
       {loading && <p className="mas-status">Loading…</p>}
       {!loading && visible.length === 0 && <p className="mas-status">Nothing here right now.</p>}
 
