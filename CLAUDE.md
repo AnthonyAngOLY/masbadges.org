@@ -208,13 +208,15 @@ The public site may read ONLY these (security-definer; minors never exposed):
 - `verify_certificate(serial)` (**function**, not a view — anti-enumeration):
   serial, level, centre, issue date, valid/revoked; **never a child's name**.
 - `instructor_directory` (**view**) — `profile_id, full_name, state,
-  partner_center_id, centre_name`. No contact PII. **There is no opt-in
-  mechanism, and the view is currently empty.** Verified against live
-  2026-09-04: `memberships` has no `public_listing` column, the two RPCs the UI
-  calls to drive a consent toggle do not exist, and the view returns **0 rows**
-  against 3 active instructor memberships. So nothing is being published without
-  consent — but nothing can be published at all, and no instructor can opt in.
-  The whole feature is inert. See Known issues #2.
+  partner_center_id, centre_name, independent, public_contact_email,
+  public_contact_phone`. **Opt-in**, gated on `memberships.public_listing`
+  (default FALSE), with blacklisted instructors excluded. Driven by
+  `get_my_instructor_listing()` / `set_my_instructor_listing(_on)`, plus
+  `set_my_public_contact(_email, _phone)` for the optional public contact — which
+  is a separate address from the login email and appears only while listed.
+  Built by `20261010100000_instructor_directory_opt_in.sql`. **That migration
+  must be applied by hand before any of this works** — until then the two RPCs
+  do not exist in the live database and the directory is empty.
 - `public_courses` (**view**) — Courses page.
 - `list_states()` RPC; `submit_enquiry(...)` RPC (Contact form).
 
@@ -321,32 +323,15 @@ vouchers only** — not amounts expected from `payout_schedule`.
    2026-09-04: **33 functions and 10 tables** exist only in the live database.
    Capture them into migration files from `pg_get_functiondef` output using
    `supabase/diagnostics/dump_live_schema.sql`.
-2. **The public instructor directory is inert end to end.** Three separate gaps,
-   all verified against live on 2026-09-04:
-   - `AccountSettings.tsx` (lines 43, 59) calls `get_my_instructor_listing()` and
-     `set_my_instructor_listing(_on)`. **Neither function exists.** The read
-     discards its error, so the switch renders **off for every instructor**
-     regardless of reality; clicking it surfaces a raw PostgREST "function not
-     found" error.
-   - `memberships` has **no `public_listing` column**, so there is nowhere for a
-     consent flag to live even if the RPCs existed.
-   - `instructor_directory` returns **0 rows** against 3 active instructor
-     memberships, so `/instructors` shows an empty list to the public.
-   No privacy exposure — nobody is published who did not consent, because nobody
-   is published at all. But the feature does not work in any direction. Fixing it
-   needs one migration (consent column + gated view + both RPCs) and a one-line
-   frontend fix to stop swallowing the read error. **Get the live view definition
-   first** — the 0 rows are not explained by the committed file, so the deployed
-   view likely differs from it.
-3. **`/instructors` reads columns the view doesn't have.** `Instructors.tsx`
-   types its rows as `{ id, full_name, state, centre_name, independent }`, but the
-   committed `instructor_directory` provides `profile_id, full_name, state,
-   partner_center_id, centre_name` — no `id`, no `independent`. So React keys are
-   `undefined` and every instructor renders as "Partner centre" even when
-   independent. Invisible today only because the view returns 0 rows. Fix
-   alongside Known issue #2, once the live view definition is in hand.
-
-   **The three public directories are distinct — do not merge them.**
+2. **Instructor directory — migration written, NOT YET APPLIED.**
+   `20261010100000_instructor_directory_opt_in.sql` adds the consent column, the
+   consent-gated view and the RPCs the frontend has always called. The frontend
+   side is merged. Until Anthony runs that file in the SQL editor, `/instructors`
+   stays empty and the toggle on `/account` still errors — the code is ahead of
+   the database, which is the normal state here, not a bug.
+   Publishing enforcement status (blacklisted instructors) was considered and
+   deliberately left out: the blacklist stays internal, as originally designed.
+3. **The three public directories are distinct — do not merge them.**
    `/find-a-centre` is the venue/location finder for approved partner centres who
    opt in. `/instructors` is the instructor listing. `/directory` was a second
    centre finder duplicating `/find-a-centre` and now redirects to it.
