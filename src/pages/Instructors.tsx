@@ -48,7 +48,7 @@ export default function Instructors() {
           <strong>The instructor pathway</strong>
           <span className="mas-inst-cta-go">How to get certified →</span>
         </Link>
-        <Link to="/directory" className="mas-inst-cta-card">
+        <Link to="/find-a-centre" className="mas-inst-cta-card">
           <span className="mas-inst-cta-aud">Looking for lessons?</span>
           <strong>Find a recognised centre</strong>
           <span className="mas-inst-cta-go">Browse the directory →</span>

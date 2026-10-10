@@ -244,7 +244,7 @@ export default function Home() {
               BADGES is taught at partner centres across Malaysia, each one accredited to the national standard. Find one near you and enrol your child.
             </EditableText>
           </p>
-          <Link to="/directory" className="mas-btn-solid-navy">Find a swim centre</Link>
+          <Link to="/find-a-centre" className="mas-btn-solid-navy">Find a swim centre</Link>
         </article>
 
         <article className="mas-teaser">
@@ -396,7 +396,7 @@ function HeroCarousel() {
           }
           cta={
             <>
-              <Link to="/directory" className="mas-btn-solid">Find a swim centre</Link>
+              <Link to="/find-a-centre" className="mas-btn-solid">Find a swim centre</Link>
               <Link to="/verify" className="mas-btn-outline-light">Verify a certificate</Link>
             </>
           }

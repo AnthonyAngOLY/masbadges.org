@@ -40,7 +40,7 @@ export default function ForParents() {
       </p>
 
       <div className="mas-form-actions" style={{ marginTop: '1.25rem' }}>
-        <Link className="mas-btn-primary" to="/directory">Find a centre near you</Link>
+        <Link className="mas-btn-primary" to="/find-a-centre">Find a centre near you</Link>
         <Link className="mas-btn-ghost" to="/verify">Verify a certificate</Link>
       </div>
     </section>

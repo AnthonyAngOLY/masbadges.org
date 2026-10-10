@@ -59,8 +59,9 @@ build blocks Netlify; verifying locally on the runner prevents a red deploy.
    imports, and class names. Do not invent file contents.
 4. **Check for duplicates before creating a page/route.** Search `src/App.tsx`
    routes and `src/pages/` first. This repo has already shipped duplicates twice
-   from pages being recreated blind (a since-removed second `/instructors`; the
-   still-live `/directory` vs `/find-a-centre` pair). Reuse, don't duplicate.
+   from pages being recreated blind — a second `/instructors`, and a `/directory`
+   that duplicated `/find-a-centre` down to the same `<h1>`. Both are now gone.
+   Reuse, don't duplicate.
 5. **`src/App.tsx` is the spine** — routes, `PublicLayout` (public nav, header
    search, fixed-header scroll JS) and `AppLayout` (portal shell + role-gated
    sidebar). ~950 lines. When touching routing/nav, edit it last and re-verify
@@ -123,7 +124,7 @@ supabase/migrations/*.sql      119 files, applied BY HAND — and NOT a complete
 ```
 
 **Public routes:** `/` · `/the-programme` · `/for-parents` · `/for-centres` ·
-`/directory` · `/find-a-centre` · `/apply-partner-centre` · `/courses` ·
+`/find-a-centre` (`/directory` redirects here) · `/apply-partner-centre` · `/courses` ·
 `/instructors` · `/guides` + `/guides/:slug` · `/faq` · `/contact` · `/verify`
 + `/verify/:serial` · `/search` · `/privacy` · `/terms` · `/safeguarding`.
 
@@ -187,8 +188,8 @@ with hysteresis (shrink >80px, expand <24px) + rAF throttle. **Do not return the
 header to `position: sticky`** or make the content offset depend on header height.
 
 ### Nav (in `App.tsx` PublicLayout)
-The programme · Find a centre ▾ (Browse the directory → `/directory`, Become a
-partner centre → `/for-centres`) · Instructors · Guides ▾ (All guides + the eight
+The programme · Find a centre ▾ (Browse the directory → `/find-a-centre`, Become
+a partner centre → `/for-centres`) · Instructors · Guides ▾ (All guides + the eight
 guide slugs, hard-coded in the nav even though guide bodies are DB-backed) ·
 Courses · FAQ. Plus a header search (desktop expanding input + a mobile form) that
 submits to `/search`, backed by `data/searchIndex.ts`.
@@ -337,18 +338,26 @@ vouchers only** — not amounts expected from `payout_schedule`.
    frontend fix to stop swallowing the read error. **Get the live view definition
    first** — the 0 rows are not explained by the committed file, so the deployed
    view likely differs from it.
-3. **Two live public centre directories.** `/directory` (`Directory.tsx`, reads the
-   `partner_center_directory` view, 175 lines) and `/find-a-centre`
-   (`PublicCentreDirectory.tsx`, reads `list_published_centres()`, richer: hero
-   images, classification badges, expandable cards, 389 lines). The nav points at
-   `/directory`; `/find-a-centre` is reachable only by URL. Decide which survives,
-   then remove the other route, page and nav entry.
+3. **`/instructors` reads columns the view doesn't have.** `Instructors.tsx`
+   types its rows as `{ id, full_name, state, centre_name, independent }`, but the
+   committed `instructor_directory` provides `profile_id, full_name, state,
+   partner_center_id, centre_name` — no `id`, no `independent`. So React keys are
+   `undefined` and every instructor renders as "Partner centre" even when
+   independent. Invisible today only because the view returns 0 rows. Fix
+   alongside Known issue #2, once the live view definition is in hand.
+
+   **The three public directories are distinct — do not merge them.**
+   `/find-a-centre` is the venue/location finder for approved partner centres who
+   opt in. `/instructors` is the instructor listing. `/directory` was a second
+   centre finder duplicating `/find-a-centre` and now redirects to it.
 4. **L7 Dolphin badge** has a faint purple rim (cut from a purple PDF panel; the
    artwork sheet only has L1–L6). Re-cut cleanly only if the original Dolphin
    artwork file is added to the repo.
 5. **`PublicCentreDirectory.tsx` styles itself from an inline `STYLES` constant**
-   instead of `theme.css`. If the page survives item 2, fold its CSS into
-   `theme.css` like every other page.
+   instead of `theme.css`, and uses no `EditableText`, so none of its copy is
+   admin-editable. It is now the only public centre finder, so both are worth
+   fixing: fold the CSS into `theme.css`, and wrap its headings/lede in
+   `EditableText` as the other public pages do.
 6. **Deferred (portal):** online card payment (provider TBD), PDF/QR hardcopy
    certs, calendar module, real Storage upload for payment proofs.
 
