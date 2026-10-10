@@ -938,9 +938,7 @@ export default function App() {
             <Route path="/claim-signup" element={<ClaimSignup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/set-password" element={<SetPassword />} />
-            <Route element={<Protected />}>
-              <Route path="/parent" element={<ParentDashboard />} />
-            </Route>
+            <Route path="/parent" element={<Protected><ParentDashboard /></Protected>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </ErrorBoundary>
