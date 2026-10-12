@@ -36,7 +36,8 @@ export default function Instructors() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.rpc('list_states');
+      const { data, error } = await supabase.rpc('list_states');
+      if (error) { console.error('list_states failed:', error.message); return; }
       setStates(((data ?? []) as { state: string }[]).map((x) => x.state));
     })();
   }, []);

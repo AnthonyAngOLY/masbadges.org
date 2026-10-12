@@ -34,6 +34,7 @@ export default function ClaimCandidate() {
 
   const [children, setChildren] = useState<Child[]>([]);
   const [certs, setCerts] = useState<Record<string, Cert[]>>({});
+  const [certsFailed, setCertsFailed] = useState(false);
   const [load, setLoad] = useState<Load>('loading');
 
   const fetchChildren = useCallback(async () => {
@@ -53,11 +54,14 @@ export default function ClaimCandidate() {
 
     if (list.length > 0) {
       const ids = list.map((k) => k.id);
-      const { data: cert } = await supabase
+      const { data: cert, error: certError } = await supabase
         .from('certificates')
         .select('id, serial, level, issued_on, candidate_id')
         .in('candidate_id', ids)
         .order('issued_on', { ascending: false });
+      // Otherwise a failed fetch renders as "No badges awarded yet." to a parent
+      // whose child has badges.
+      setCertsFailed(Boolean(certError));
       const byChild: Record<string, Cert[]> = {};
       for (const c of (cert ?? []) as Cert[]) (byChild[c.candidate_id] ??= []).push(c);
       setCerts(byChild);
@@ -150,7 +154,11 @@ export default function ClaimCandidate() {
               <div className="mas-grade-session-head">
                 <h3 className="mas-admin-name">{child.full_name}</h3>
               </div>
-              {list.length === 0 ? (
+              {certsFailed ? (
+                <p className="mas-status mas-status-bad">
+                  Couldn’t load badges just now. Please try again shortly.
+                </p>
+              ) : list.length === 0 ? (
                 <p className="mas-status">No badges awarded yet.</p>
               ) : (
                 <ul className="mas-admin-list">

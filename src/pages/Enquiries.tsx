@@ -62,6 +62,7 @@ export default function Enquiries() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actError, setActError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Conversion state — which enquiry is being converted, and applicant search
   const [convertingId, setConvertingId] = useState<string | null>(null);
@@ -72,7 +73,9 @@ export default function Enquiries() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.rpc('list_enquiries', { _include_archived: showArchived });
+    const { data, error } = await supabase.rpc('list_enquiries', { _include_archived: showArchived });
+    if (error) { setLoadError(error.message); setRows([]); setLoading(false); return; }
+    setLoadError(null);
     setRows((data ?? []) as Enquiry[]);
     setLoading(false);
   }, [showArchived]);
@@ -174,6 +177,9 @@ export default function Enquiries() {
       </div>
 
       {actError && <p className="mas-status mas-status-bad">{actError}</p>}
+      {!loading && loadError && (
+        <p className="mas-status mas-status-bad">Couldn’t load enquiries. Please try again shortly.</p>
+      )}
       {loading && <p className="mas-status">Loading…</p>}
       {!loading && visible.length === 0 && <p className="mas-status">Nothing here right now.</p>}
 

@@ -49,12 +49,16 @@ export default function GuideDetail() {
   const { slug } = useParams();
   const [guide, setGuide] = useState<Guide | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.rpc('list_public_guides');
+      const { data, error } = await supabase.rpc('list_public_guides');
       if (cancelled) return;
+      // A failed fetch must not render as "Guide not found" — that tells the
+      // visitor the page is gone when the database simply couldn't be reached.
+      setLoadFailed(Boolean(error));
       const arr: Guide[] = Array.isArray(data) ? (data as Guide[]) : [];
       setGuide(arr.find((g) => g.slug === slug) ?? null);
       setLoading(false);
@@ -66,6 +70,18 @@ export default function GuideDetail() {
     return (
       <section className="mas-page">
         <header className="mas-page-head"><p className="mas-status">Loading…</p></header>
+      </section>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <section className="mas-page">
+        <header className="mas-page-head">
+          <h1>Couldn’t load this guide</h1>
+          <p className="mas-lede">Something went wrong reaching the site content. Please try again shortly.</p>
+        </header>
+        <Link to="/guides" className="mas-link">← All guides</Link>
       </section>
     );
   }

@@ -50,7 +50,8 @@ export default function InstructorOnboarding() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from('partner_centers').select('id, name').order('name');
+      const { data, error } = await supabase.from('partner_centers').select('id, name').order('name');
+      if (error) { console.error('partner_centers load failed:', error.message); return; }
       if (!cancelled) setCentres((data ?? []) as CentreRow[]);
     })();
     fetchInvitations();
