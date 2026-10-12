@@ -347,9 +347,11 @@ vouchers only** — not amounts expected from `payout_schedule`.
    certs, calendar module, real Storage upload for payment proofs.
 
 **Resolved — do not "fix" these again:** the duplicate `/instructors` route (gone;
-only `Instructors.tsx` remains) and hover-only mobile nav dropdowns (tap-to-expand
-shipped). The instructor opt-in toggle is **not** resolved despite the UI being
-wired — see Known issues #2.
+only `Instructors.tsx` remains); hover-only mobile nav dropdowns (tap-to-expand
+shipped); `/parent` rendering blank for signed-in parents; `hasRole()` handing
+governance roles every role in the table; ten portal writes that failed silently;
+and a blank page on a build with no Supabase env vars. The instructor opt-in
+toggle is written but **pending a hand-applied migration** — see Known issues #2.
 
 ---
 
