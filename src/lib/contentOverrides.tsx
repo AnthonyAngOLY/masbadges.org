@@ -36,18 +36,32 @@ export function ContentOverridesProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     let active = true;
-    supabase
-      .from('public_content_overrides')
-      .select('key, value')
-      .then(({ data }) => {
+    (async () => {
+      // Overrides are optional polish — every EditableText carries a hard-coded
+      // fallback — so a failure must not block the page. It must still clear
+      // `loading`, and it must not reject: the previous .then() had no catch, so
+      // a failed or aborted request left loading stuck true forever and raised
+      // an unhandled rejection.
+      try {
+        const { data, error } = await supabase
+          .from('public_content_overrides')
+          .select('key, value');
         if (!active) return;
+        if (error) {
+          console.error('content overrides load failed:', error.message);
+          return;
+        }
         const map: Record<string, string> = {};
         for (const row of (data ?? []) as { key: string; value: string }[]) {
           if (row.key != null && row.value != null) map[row.key] = row.value;
         }
         setOverrides(map);
-        setLoading(false);
-      });
+      } catch (e) {
+        if (active) console.error('content overrides load threw:', e);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
     return () => { active = false; };
   }, []);
 

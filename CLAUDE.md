@@ -46,6 +46,14 @@ Scripts (`package.json` — there is no test or lint script):
 **Always run the build and fix type/import errors before opening a PR.** A broken
 build blocks Netlify; verifying locally on the runner prevents a red deploy.
 
+**Request timeout.** `lib/supabase.ts` injects a `fetch` that aborts after 10s.
+Without it a connection that is accepted and then stalls leaves the promise
+pending forever and the page on "Loading…" — measured, it never settled at all.
+Note the 10s is PER ATTEMPT: supabase-js retries a failed REST call internally
+(four calls into the wrapper for one `.from().select()`, spaced ~1s/2s/4s), so a
+fully stalled connection surfaces after roughly 4x that. Failures that fail
+rather than stall — 500, refused, bad DNS — still surface in under a second.
+
 ---
 
 ## How to work in this repo (Claude Code rules)
