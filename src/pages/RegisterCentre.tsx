@@ -37,13 +37,15 @@ export default function RegisterCentre() {
   const [mine, setMine] = useState<MyReg[]>([]);
 
   const fetchMine = useCallback(async () => {
-    const { data } = await supabase.rpc('list_my_centre_registrations');
+    const { data, error } = await supabase.rpc('list_my_centre_registrations');
+    if (error) { console.error('list_my_centre_registrations failed:', error.message); return; }
     setMine((data ?? []) as MyReg[]);
   }, []);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.rpc('list_states');
+      const { data, error } = await supabase.rpc('list_states');
+      if (error) { console.error('list_states failed:', error.message); return; }
       setStates(((data ?? []) as StateRow[]).map((x) => x.state));
     })();
     fetchMine();

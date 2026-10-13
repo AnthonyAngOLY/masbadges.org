@@ -56,15 +56,17 @@ export default function CentreBilling() {
 
   async function runLapse() {
     setBusy('lapse');
-    const { data } = await supabase.rpc('lapse_expired_centres');
+    const { data, error } = await supabase.rpc('lapse_expired_centres');
     setBusy(null);
+    if (error) { alert(error.message); return; }
     alert(`${data ?? 0} expired listing(s) suspended.`);
     load();
   }
   async function inviteAdmin(centreId: string, email: string) {
     setBusy(centreId);
-    await supabase.rpc('invite_centre_admin', { _centre: centreId, _email: email });
+    const { error } = await supabase.rpc('invite_centre_admin', { _centre: centreId, _email: email });
     setBusy(null);
+    if (error) { alert(error.message); return; }
     alert('Invitation recorded.');
   }
   async function createInvoice(centreId: string) {
@@ -82,8 +84,10 @@ export default function CentreBilling() {
     const p = pay[invoiceId] ?? { method: 'transfer', amount: '', reference: '', proof: '' };
     if (!p.amount) { alert('Enter amount.'); return; }
     setBusy(invoiceId);
-    await supabase.rpc('record_centre_payment', { _invoice: invoiceId, _method: p.method, _amount: Number(p.amount), _reference: p.reference || null, _proof_url: p.proof || null });
-    setBusy(null); load();
+    const { error } = await supabase.rpc('record_centre_payment', { _invoice: invoiceId, _method: p.method, _amount: Number(p.amount), _reference: p.reference || null, _proof_url: p.proof || null });
+    setBusy(null);
+    if (error) { alert(error.message); return; }
+    load();
   }
   async function markPaid(invoiceId: string) {
     setBusy(invoiceId);

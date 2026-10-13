@@ -254,8 +254,12 @@ export default function Store() {
     setLoad('ready');
   }, []);
 
+  const [ordersFailed, setOrdersFailed] = useState(false);
   const fetchOrders = useCallback(async () => {
-    const { data } = await supabase.rpc('list_my_store_orders');
+    const { data, error } = await supabase.rpc('list_my_store_orders');
+    // "No orders yet." is a strong claim to make at someone who has ordered.
+    setOrdersFailed(Boolean(error));
+    if (error) { setOrders([]); return; }
     setOrders((data ?? []) as MyOrder[]);
   }, []);
 
@@ -522,7 +526,10 @@ export default function Store() {
 
       <div className="mas-store-orders">
         <h2>Your orders</h2>
-        {orders.length === 0 && <p className="mas-status">No orders yet.</p>}
+        {ordersFailed && (
+          <p className="mas-status mas-status-bad">Couldn’t load your orders just now. Please try again shortly.</p>
+        )}
+        {!ordersFailed && orders.length === 0 && <p className="mas-status">No orders yet.</p>}
         {orders.map((o) => (
           <div key={o.order_id} className="mas-store-order-card">
             <div className="mas-store-order-head">

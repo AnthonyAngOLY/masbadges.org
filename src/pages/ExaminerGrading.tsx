@@ -271,11 +271,18 @@ export default function ExaminerGrading() {
     if (remarksLoaded[sessionId]) return;
     // Read the current examiner_remarks value directly from the session row.
     // Any real role on the session may read; the setter RPC enforces write auth.
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('assessment_sessions')
       .select('examiner_remarks')
       .eq('id', sessionId)
       .single();
+    if (error) {
+      // Falling through would put '' in the box and mark it loaded, so saving
+      // would overwrite the examiner's existing remarks with nothing. Leave it
+      // unloaded so the next open retries.
+      console.error('examiner_remarks load failed:', error.message);
+      return;
+    }
     setRemarks((m) => ({ ...m, [sessionId]: (data as { examiner_remarks: string | null } | null)?.examiner_remarks ?? '' }));
     setRemarksLoaded((m) => ({ ...m, [sessionId]: true }));
   }

@@ -133,7 +133,11 @@ export default function PrintableDocument({ mode }: { mode: Mode }) {
   // Payment instructions are only needed on invoices.
   const fetchFinance = useCallback(async () => {
     if (mode !== 'invoice') return;
-    const { data } = await supabase.rpc('get_finance_settings');
+    const { data, error } = await supabase.rpc('get_finance_settings');
+    // The invoice still prints — it falls back to "Payment details will be
+    // provided by the MAS office", which is safe to send. Log the failure so a
+    // missing bank block is traceable rather than looking like unset settings.
+    if (error) { console.error('get_finance_settings failed:', error.message); return; }
     const row = (Array.isArray(data) ? data[0] : data) as FinanceSettings | null;
     if (row) setFinance(row);
   }, [mode]);

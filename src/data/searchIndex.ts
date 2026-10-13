@@ -78,7 +78,7 @@ const PAGE_ENTRIES: SearchEntry[] = [
     route: '/', source: 'Home · How it works' },
   { title: 'Learn at a centre you can trust',
     snippet: 'BADGES is taught at partner centres across Malaysia, each one accredited to the national standard. Find one near you and enrol your child.',
-    route: '/directory', source: 'Home · Find a centre' },
+    route: '/find-a-centre', source: 'Home · Find a centre' },
 
   // The programme (/the-programme)
   { title: 'Seven badges, one national pathway',
@@ -133,10 +133,10 @@ const PAGE_ENTRIES: SearchEntry[] = [
     snippet: 'Independent assessment, one national standard, and verifiable certificates — serialised, issued only on a genuine pass, and publicly verifiable without exposing a child’s identity.',
     route: '/#about', source: 'About · What makes a badge trustworthy' },
 
-  // Directory (/directory)
+  // Centre finder (/find-a-centre)
   { title: 'Find a swim centre',
     snippet: 'Centres recognised by Malaysia Aquatics to prepare and present candidates for the Swim Badges programme. Filter by state — only recognised centres appear here.',
-    route: '/directory', source: 'Find a centre' },
+    route: '/find-a-centre', source: 'Find a centre' },
 
   // Instructors (/instructors)
   { title: 'Certified BADGES instructors',

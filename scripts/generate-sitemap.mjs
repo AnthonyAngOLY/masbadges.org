@@ -40,7 +40,6 @@ const STATIC_URLS = [
   { loc: '/courses',                changefreq: 'weekly',  priority: '0.7' },
   { loc: '/faq',                    changefreq: 'weekly',  priority: '0.8' },
   { loc: '/guides',                 changefreq: 'weekly',  priority: '0.8' },
-  { loc: '/directory',              changefreq: 'daily',   priority: '0.7' },
   { loc: '/contact',                changefreq: 'yearly',  priority: '0.5' },
   { loc: '/privacy',                changefreq: 'yearly',  priority: '0.3' },
   { loc: '/terms',                  changefreq: 'yearly',  priority: '0.3' },

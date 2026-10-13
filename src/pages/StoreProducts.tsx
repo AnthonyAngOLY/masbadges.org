@@ -251,9 +251,10 @@ export default function StoreProducts() {
       const path = `products/${ins.data.id}/${Date.now()}_${clean}`;
       const up = await supabase.storage.from('store-products').upload(path, nPhoto, { upsert: false });
       if (!up.error) {
-        await supabase.from('store_products')
+        const { error } = await supabase.from('store_products')
           .update({ image_paths: [path] })
           .eq('id', ins.data.id);
+        if (error) setMsg({ ok: false, text: `Product created, but its photo could not be attached: ${error.message}` });
       }
     }
 
@@ -314,8 +315,9 @@ export default function StoreProducts() {
     const up = await supabase.storage.from('store-products').upload(path, f, { upsert: false });
     if (up.error) { setEUploading(false); setMsg({ ok: false, text: up.error.message }); return; }
     const nextPaths = [...(p.image_paths ?? []), path];
-    await supabase.from('store_products').update({ image_paths: nextPaths }).eq('id', p.id);
+    const { error } = await supabase.from('store_products').update({ image_paths: nextPaths }).eq('id', p.id);
     setEUploading(false);
+    if (error) { setMsg({ ok: false, text: error.message }); return; }
     fetchRows();
   }
   async function removeImage(path: string) {
@@ -323,7 +325,10 @@ export default function StoreProducts() {
     const p = rows.find((r) => r.id === editId);
     if (!p) return;
     const rest = (p.image_paths ?? []).filter((x) => x !== path);
-    await supabase.from('store_products').update({ image_paths: rest }).eq('id', p.id);
+    const { error } = await supabase.from('store_products').update({ image_paths: rest }).eq('id', p.id);
+    // Bail before touching storage: deleting the file after a failed row update
+    // would leave the product pointing at an object that no longer exists.
+    if (error) { setMsg({ ok: false, text: error.message }); return; }
     await supabase.storage.from('store-products').remove([path]);
     fetchRows();
   }
@@ -332,7 +337,8 @@ export default function StoreProducts() {
     const p = rows.find((r) => r.id === editId);
     if (!p) return;
     const rest = (p.image_paths ?? []).filter((x) => x !== path);
-    await supabase.from('store_products').update({ image_paths: [path, ...rest] }).eq('id', p.id);
+    const { error } = await supabase.from('store_products').update({ image_paths: [path, ...rest] }).eq('id', p.id);
+    if (error) { setMsg({ ok: false, text: error.message }); return; }
     fetchRows();
   }
 

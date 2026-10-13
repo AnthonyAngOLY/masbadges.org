@@ -20,7 +20,6 @@ import Instructors from './pages/Instructors';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Safeguarding from './pages/Safeguarding';
-import Directory from './pages/Directory';
 import Courses from './pages/Courses';
 import Verify from './pages/Verify';
 import SearchResults from './pages/SearchResults';
@@ -271,7 +270,7 @@ function PublicLayout() {
 
           <div className={`mas-navitem mas-has-menu${openSection === 'centre' ? ' is-open' : ''}`}>
             <div className="mas-navitem-top">
-              <NavLink to="/directory" className={({ isActive }) => `mas-menu-top${isActive ? ' is-active' : ''}`}>Find a centre</NavLink>
+              <NavLink to="/find-a-centre" className={({ isActive }) => `mas-menu-top${isActive ? ' is-active' : ''}`}>Find a centre</NavLink>
               <button
                 type="button"
                 className="mas-submenu-toggle"
@@ -283,7 +282,7 @@ function PublicLayout() {
               </button>
             </div>
             <div className="mas-submenu">
-              <NavLink to="/directory">Browse the directory</NavLink>
+              <NavLink to="/find-a-centre">Browse the directory</NavLink>
               <NavLink to="/for-centres">Become a partner centre</NavLink>
             </div>
           </div>
@@ -378,7 +377,7 @@ function PublicLayout() {
           <div>
             <h4>Programme</h4>
             <Link to="/the-programme">The programme</Link>
-            <Link to="/directory">Find a centre</Link>
+            <Link to="/find-a-centre">Find a centre</Link>
             <Link to="/instructors">Instructors</Link>
             <Link to="/courses">Courses</Link>
           </div>
@@ -878,7 +877,9 @@ export default function App() {
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/safeguarding" element={<Safeguarding />} />
-              <Route path="/directory" element={<Directory />} />
+              {/* Retired in favour of /find-a-centre. Kept as a redirect so
+                  existing links, bookmarks and indexed search results survive. */}
+              <Route path="/directory" element={<Navigate to="/find-a-centre" replace />} />
               <Route path="/courses" element={<Courses />} />
               <Route path="/verify" element={<Verify />} />
               <Route path="/verify/:serial" element={<Verify />} />
@@ -938,9 +939,7 @@ export default function App() {
             <Route path="/claim-signup" element={<ClaimSignup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/set-password" element={<SetPassword />} />
-            <Route element={<Protected />}>
-              <Route path="/parent" element={<ParentDashboard />} />
-            </Route>
+            <Route path="/parent" element={<Protected><ParentDashboard /></Protected>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </ErrorBoundary>

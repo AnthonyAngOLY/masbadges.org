@@ -74,7 +74,7 @@ export default function TheProgramme() {
       </div>
 
       <div className="mas-prog-cta">
-        <Link className="mas-btn-solid-navy" to="/directory">Find a recognised centre</Link>
+        <Link className="mas-btn-solid-navy" to="/find-a-centre">Find a recognised centre</Link>
         <Link className="mas-btn-ghost-navy" to="/guides/how-it-works">How the programme works</Link>
       </div>
     </section>

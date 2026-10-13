@@ -105,7 +105,8 @@ export default function CourseManagement() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.rpc('list_states');
+      const { data, error } = await supabase.rpc('list_states');
+      if (error) { console.error('list_states failed:', error.message); return; }
       if (!cancelled) setStates(((data ?? []) as StateRow[]).map((x) => x.state));
     })();
     fetchCourses();

@@ -36,6 +36,7 @@ export default function RoleRegistry() {
   const [warnings, setWarnings] = useState<Warning[]>([]);
   const [edits, setEdits] = useState<Record<string, Partial<CatalogRow>>>({});
   const [savedRole, setSavedRole] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<Record<string, string>>({});
   const [busyRole, setBusyRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -65,7 +66,8 @@ export default function RoleRegistry() {
 
   async function save(role: string) {
     setBusyRole(role);
-    await supabase.rpc('upsert_role_catalog', {
+    setSaveError((p) => { const n = { ...p }; delete n[role]; return n; });
+    const { error } = await supabase.rpc('upsert_role_catalog', {
       _role: role,
       _summary: field(role, 'summary'),
       _responsibilities: field(role, 'responsibilities'),
@@ -73,6 +75,12 @@ export default function RoleRegistry() {
       _notes: field(role, 'notes'),
     });
     setBusyRole(null);
+    if (error) {
+      // Keep the pending edits on screen — clearing them on a failed save threw
+      // away the user's typing and then showed "Saved".
+      setSaveError((p) => ({ ...p, [role]: error.message }));
+      return;
+    }
     setSavedRole(role);
     setEdits((p) => { const n = { ...p }; delete n[role]; return n; });
     load();
@@ -117,6 +125,7 @@ export default function RoleRegistry() {
             </div>
             {savedRole === r.role && <span className="mas-badge is-success">Saved</span>}
           </div>
+          {saveError[r.role] && <p className="mas-status mas-status-bad">{saveError[r.role]}</p>}
 
           <div className="mas-form-grid">
             <div className="mas-field">
