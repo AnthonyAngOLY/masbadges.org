@@ -26,15 +26,20 @@
 --   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 --   where n.nspname = 'public' and p.proname = 'can_bill_centres';
 --
--- If that returns the three roles below plus nothing else, this migration is
--- purely additive and safe to run. If it returns anything else — extra
--- conditions, different roles, a centre scope — STOP and reconcile first,
--- because this would overwrite it.
+-- Read on 2026-11-10: the deployed body was exactly
+--   select public.has_role('chairperson') or public.has_role('board_member')
+--       or public.has_role('system_admin');
+-- with LANGUAGE sql, STABLE and SET search_path TO ''. Adding finance_officer
+-- is therefore purely additive, and this file reproduces the rest unchanged.
 
 create or replace function public.can_bill_centres()
 returns boolean
 language sql
 stable
+-- Keep the search_path pinned. The deployed definition had it, 22 of the 23
+-- captured functions have it, and dropping it on a replace is a silent
+-- downgrade that nothing would have failed on.
+set search_path to ''
 as $function$
   select public.has_role('chairperson')
       or public.has_role('board_member')
