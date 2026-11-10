@@ -304,14 +304,21 @@ dump script's name arrays predated the Part 1 inventory and were never widened.
 that change was chairperson / board_member / system_admin with
 `set search_path to ''`.
 
-⚠ **`get_finance_settings()` is readable by `anon`.** It is SECURITY DEFINER,
-performs no authorisation check, and is granted to anon — the key in the public
-bundle — returning the organisation's bank account numbers, SWIFT code and
-finance contacts. `org_finance_settings`' own RLS policy restricts SELECT to
-signed-in users, so the function is a hole around its own table's rule.
-`list_centre_fee_catalog()` and `list_store_products()` are ungated the same
-way, lower stakes. Remediation is written but NOT applied — see the capture
-file. Nothing else in the capture is ungated.
+**Fixed 2026-11-10** by `20261110140000_revoke_anon_finance_settings.sql`,
+applied: `get_finance_settings()` was SECURITY DEFINER with no authorisation
+check and granted to `anon` — the key in the public bundle — so the
+organisation's bank account numbers, SWIFT code and finance contacts were
+readable by anyone, around `org_finance_settings`' own signed-in-only policy.
+`anon` and PUBLIC are now revoked from it and from `list_centre_fee_catalog()`
+and `list_store_products()`, and `get_finance_settings` carries an
+`auth.uid() is not null` predicate so a restored grant cannot reopen it.
+Verified: `anon` false, `authenticated` and `service_role` true on all three.
+
+**The wider pattern remains.** Every other function in this database is still
+granted to `anon` and `PUBLIC`. The other 20 in the capture gate properly in
+their own bodies, so this is belt-and-braces rather than a hole — but any NEW
+security-definer function must either check `auth.uid()`/`has_role()` in its
+body or be revoked from `anon`. Do not rely on the grant list.
 
 `supabase/migrations/README.md`'s "Applied so far" table stops at 6 files out of
 119 — ignore it.
@@ -346,37 +353,65 @@ vouchers only** — not amounts expected from `payout_schedule`.
 
 ## Known issues / next tasks
 
-1. **Schema drift** (see the warning above) — the highest-risk item. Verified
-   2026-09-04: **33 functions and 10 tables** exist only in the live database.
-   Capture them into migration files from `pg_get_functiondef` output using
-   `supabase/diagnostics/dump_live_schema.sql`.
+1. **Schema drift — part captured, not finished.** Of the 33 untracked
+   functions and 10 untracked tables, 21 functions and 7 tables are recorded in
+   `supabase/diagnostics/captured_live_schema_2026-11-10.sql`. Still missing:
+   12 functions (`can_bill_centres` is now tracked; the rest include
+   `can_manage_store`, `can_buy_store`, `is_store_staff`, `next_store_order_no`,
+   `place_store_order`, `grant_centre_admin_on_signup`, `log_account_event`),
+   3 tables (`centre_payments`, `centre_invitations`, `store_payments`), the
+   `store_order_status` enum, and the live view definitions. The capture file
+   cannot be promoted to migrations until those gates are in hand, because
+   everything in it calls them. Widen the arrays in
+   `supabase/diagnostics/dump_live_schema.sql` — they predate the Part 1
+   inventory — and run Parts 4-7 again over the missing names.
 2. **Instructor directory — DONE, applied 2026-11-10.** Consent column,
    consent-gated view and the three RPCs are live. The opt-in toggle on
    `/account` works. `/instructors` shows only instructors who opted in, so it
    stays empty until someone does. Publishing enforcement status (blacklisted
    instructors) was considered and deliberately left out: the blacklist stays
    internal, as originally designed.
-3. **The three public directories are distinct — do not merge them.**
+3. **Small things found in the 2026-11 audit, not yet done:** `master_trainer`
+   is missing from `ROLE_LABELS` in `lib/auth.tsx`, so the Chief Instructor
+   renders as a raw enum value wherever that map is used (it is present in
+   `Settings.tsx` as "Master Trainer"). The Chairperson is authorised by
+   `admin_create_account_with_password()` but cannot reach `/admin/settings`,
+   which is `system_admin` only. `/my-application` has no link from anywhere.
+   `package-lock.json` is gitignored, so Netlify re-resolves every dependency
+   range on each deploy. Live duplicates never cleaned up: `enquiries` AND
+   `inquiries` tables with matching `list_*` functions, `fo_mark_store_order_paid`
+   alongside `mark_store_order_paid`, and two overloads each of
+   `cancel_store_order` and `register_candidate`.
+
+4. **The three public directories are distinct — do not merge them.**
    `/find-a-centre` is the venue/location finder for approved partner centres who
    opt in. `/instructors` is the instructor listing. `/directory` was a second
    centre finder duplicating `/find-a-centre` and now redirects to it.
-4. **L7 Dolphin badge** has a faint purple rim (cut from a purple PDF panel; the
+5. **L7 Dolphin badge** has a faint purple rim (cut from a purple PDF panel; the
    artwork sheet only has L1–L6). Re-cut cleanly only if the original Dolphin
    artwork file is added to the repo.
-5. **`PublicCentreDirectory.tsx` styles itself from an inline `STYLES` constant**
+6. **`PublicCentreDirectory.tsx` styles itself from an inline `STYLES` constant**
    instead of `theme.css`, and uses no `EditableText`, so none of its copy is
    admin-editable. It is now the only public centre finder, so both are worth
    fixing: fold the CSS into `theme.css`, and wrap its headings/lede in
    `EditableText` as the other public pages do.
-6. **Deferred (portal):** online card payment (provider TBD), PDF/QR hardcopy
+7. **Deferred (portal):** online card payment (provider TBD), PDF/QR hardcopy
    certs, calendar module, real Storage upload for payment proofs.
 
-**Resolved — do not "fix" these again:** the duplicate `/instructors` route (gone;
-only `Instructors.tsx` remains); hover-only mobile nav dropdowns (tap-to-expand
-shipped); `/parent` rendering blank for signed-in parents; `hasRole()` handing
-governance roles every role in the table; ten portal writes that failed silently;
-and a blank page on a build with no Supabase env vars. The instructor opt-in
-toggle is written but **pending a hand-applied migration** — see Known issues #2.
+**Resolved — do not "fix" these again:** the duplicate `/instructors` route;
+hover-only mobile nav dropdowns; `/parent` rendering blank for signed-in parents;
+`hasRole()` handing governance roles every role in the table; ten portal writes
+that failed silently; 21 reads that showed an outage as empty data; a blank page
+on a build with no Supabase env vars; a stalled connection hanging a page
+forever; the instructor opt-in toggle (migration applied 2026-11-10); four
+onboarding permission gates where the screen and the database disagreed; and
+anon access to the organisation's bank details.
+
+**Also settled:** the first-login quiz IS enforced — the gate lives in
+`AppLayout`, which calls `needs_onboarding()` on sign-in and redirects to
+`/onboarding`. A second, unused copy of that logic in `pages/OnboardingGate.tsx`
+was deleted. Do not re-report the quiz as unenforced on the strength of nothing
+importing that file.
 
 ---
 
