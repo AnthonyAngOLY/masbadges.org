@@ -222,9 +222,9 @@ The public site may read ONLY these (security-definer; minors never exposed):
   `get_my_instructor_listing()` / `set_my_instructor_listing(_on)`, plus
   `set_my_public_contact(_email, _phone)` for the optional public contact — which
   is a separate address from the login email and appears only while listed.
-  Built by `20261010100000_instructor_directory_opt_in.sql`. **That migration
-  must be applied by hand before any of this works** — until then the two RPCs
-  do not exist in the live database and the directory is empty.
+  Built by `20261010100000_instructor_directory_opt_in.sql`, **applied
+  2026-11-10**. The directory stays empty until instructors opt in, which is
+  the correct default, not a fault.
 - `public_courses` (**view**) — Courses page.
 - `list_states()` RPC; `submit_enquiry(...)` RPC (Contact form).
 
@@ -291,8 +291,27 @@ Deployed-but-different: `list_billing_invoices` and `list_my_invoices` both have
 migrations, but the live versions return extra columns the files do not declare
 (`last_payment_*` and `session_status`). Never regenerate them from the files.
 
-Called by the frontend but **absent from the live database entirely**:
-`get_my_instructor_listing`, `set_my_instructor_listing` (see Known issues #2).
+**Captured 2026-11-10** into `supabase/diagnostics/captured_live_schema_2026-11-10.sql`:
+23 function definitions, 7 tables with constraints, indexes, policies and grants.
+Still uncaptured: 12 functions (including the `can_*` gates), 3 tables
+(`centre_payments`, `centre_invitations`, `store_payments`), the
+`store_order_status` enum and the live `instructor_directory` definition — the
+dump script's name arrays predated the Part 1 inventory and were never widened.
+
+**Applied 2026-11-10:** `20261010100000_instructor_directory_opt_in.sql`, and
+`20261110120000_mas_officer_centre_billing.sql` which widened
+`can_bill_centres()` to include `finance_officer`. The deployed body before
+that change was chairperson / board_member / system_admin with
+`set search_path to ''`.
+
+⚠ **`get_finance_settings()` is readable by `anon`.** It is SECURITY DEFINER,
+performs no authorisation check, and is granted to anon — the key in the public
+bundle — returning the organisation's bank account numbers, SWIFT code and
+finance contacts. `org_finance_settings`' own RLS policy restricts SELECT to
+signed-in users, so the function is a hole around its own table's rule.
+`list_centre_fee_catalog()` and `list_store_products()` are ungated the same
+way, lower stakes. Remediation is written but NOT applied — see the capture
+file. Nothing else in the capture is ungated.
 
 `supabase/migrations/README.md`'s "Applied so far" table stops at 6 files out of
 119 — ignore it.
@@ -331,14 +350,12 @@ vouchers only** — not amounts expected from `payout_schedule`.
    2026-09-04: **33 functions and 10 tables** exist only in the live database.
    Capture them into migration files from `pg_get_functiondef` output using
    `supabase/diagnostics/dump_live_schema.sql`.
-2. **Instructor directory — migration written, NOT YET APPLIED.**
-   `20261010100000_instructor_directory_opt_in.sql` adds the consent column, the
-   consent-gated view and the RPCs the frontend has always called. The frontend
-   side is merged. Until Anthony runs that file in the SQL editor, `/instructors`
-   stays empty and the toggle on `/account` still errors — the code is ahead of
-   the database, which is the normal state here, not a bug.
-   Publishing enforcement status (blacklisted instructors) was considered and
-   deliberately left out: the blacklist stays internal, as originally designed.
+2. **Instructor directory — DONE, applied 2026-11-10.** Consent column,
+   consent-gated view and the three RPCs are live. The opt-in toggle on
+   `/account` works. `/instructors` shows only instructors who opted in, so it
+   stays empty until someone does. Publishing enforcement status (blacklisted
+   instructors) was considered and deliberately left out: the blacklist stays
+   internal, as originally designed.
 3. **The three public directories are distinct — do not merge them.**
    `/find-a-centre` is the venue/location finder for approved partner centres who
    opt in. `/instructors` is the instructor listing. `/directory` was a second
