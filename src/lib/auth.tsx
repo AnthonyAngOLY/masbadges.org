@@ -121,6 +121,7 @@ export const ROLE_LABELS: Record<string, string> = {
   chief_examiner: 'Chief Examiner',
   examiner_trainer: 'Examiner Course Trainer',
   instructor_trainer: 'Instructor Trainer',
+  master_trainer: 'Master Trainer',
   examiner: 'Examiner',
   instructor: 'Instructor',
   partner_center_admin: 'Centre Admin',
