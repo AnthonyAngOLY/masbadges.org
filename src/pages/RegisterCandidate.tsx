@@ -88,10 +88,11 @@ export default function RegisterCandidate() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('partner_center_directory')
         .select('id, name, state')
         .order('name');
+      if (error) { console.error('partner_center_directory load failed:', error.message); return; }
       if (!cancelled) setCentres((data ?? []) as CentreOption[]);
     })();
     return () => { cancelled = true; };

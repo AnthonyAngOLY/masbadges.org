@@ -19,6 +19,7 @@ export default function SearchResults() {
 
   const [guideEntries, setGuideEntries] = useState<SearchEntry[]>([]);
   const [guidesLoaded, setGuidesLoaded] = useState(false);
+  const [guidesFailed, setGuidesFailed] = useState(false);
 
   // One-shot fetch of published guides. We build search entries from the RPC
   // response once, then keep them in state — searchSite is a pure filter so
@@ -26,8 +27,12 @@ export default function SearchResults() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.rpc('list_public_guides');
+      const { data, error } = await supabase.rpc('list_public_guides');
       if (cancelled) return;
+      // Guides are one source among several here, so a failure degrades the
+      // results rather than emptying the page — but say so instead of quietly
+      // returning fewer hits than the site actually has.
+      setGuidesFailed(Boolean(error));
       const cards = (Array.isArray(data) ? data : []) as GuideCardForSearch[];
       setGuideEntries(buildGuideEntries(cards));
       setGuidesLoaded(true);
@@ -65,6 +70,12 @@ export default function SearchResults() {
           </p>
         )}
       </header>
+
+      {guidesFailed && (
+        <p className="mas-status mas-status-bad">
+          Guides couldn’t be loaded, so these results are incomplete.
+        </p>
+      )}
 
       {trimmed && guidesLoaded && results.length === 0 && (
         <div className="mas-search-empty">

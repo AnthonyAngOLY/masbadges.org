@@ -130,6 +130,7 @@ export default function ParentDashboard() {
   const [swimmers, setSwimmers] = useState<Swimmer[]>([]);
   const [load, setLoad] = useState<Load>('loading');
   const [certs, setCerts] = useState<Record<string, Cert[]>>({});
+  const [certsError, setCertsError] = useState<Record<string, string>>({});
   const [tracker, setTracker] = useState<Record<string, Tracker | null>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -147,7 +148,11 @@ export default function ParentDashboard() {
     setLoad('ready');
     // For each swimmer, load their tracker eagerly (parents want to see progress at a glance).
     rows.forEach(async (s) => {
-      const { data: t } = await supabase.rpc('list_swimmer_tracker', { _candidate_id: s.candidate_id });
+      const { data: t, error: tErr } = await supabase.rpc('list_swimmer_tracker', { _candidate_id: s.candidate_id });
+      // Progress is a nice-to-have next to the certificate list, so a failure
+      // here leaves it absent rather than blocking the page — but it is logged
+      // instead of silently looking like "no progress recorded".
+      if (tErr) { console.error('list_swimmer_tracker failed:', tErr.message); return; }
       const row = (Array.isArray(t) ? t[0] : t) as Tracker | null;
       setTracker((m) => ({ ...m, [s.candidate_id]: row ?? null }));
     });
@@ -163,7 +168,14 @@ export default function ParentDashboard() {
       return n;
     });
     if (!certs[candidateId]) {
-      const { data } = await supabase.rpc('list_swimmer_certificates', { _candidate_id: candidateId });
+      const { data, error } = await supabase.rpc('list_swimmer_certificates', { _candidate_id: candidateId });
+      if (error) {
+        // The button says "Show N certificates", so an empty list after a failed
+        // fetch would read as the child's certificates having vanished.
+        setCertsError((m) => ({ ...m, [candidateId]: error.message }));
+        return;
+      }
+      setCertsError((m) => { const n = { ...m }; delete n[candidateId]; return n; });
       setCerts((m) => ({ ...m, [candidateId]: (data ?? []) as Cert[] }));
     }
   }
@@ -249,7 +261,12 @@ export default function ParentDashboard() {
                   <button className="mas-btn-ghost mas-btn-compact" onClick={() => toggleCerts(s.candidate_id)}>
                     {isOpen ? 'Hide list' : `Show ${s.cert_count} certificate${s.cert_count === 1 ? '' : 's'}`}
                   </button>
-                  {isOpen && (certs[s.candidate_id] ?? []).length > 0 && (
+                  {isOpen && certsError[s.candidate_id] && (
+                    <p className="mas-status mas-status-bad">
+                      Couldn’t load these certificates. Please try again shortly.
+                    </p>
+                  )}
+                  {isOpen && !certsError[s.candidate_id] && (certs[s.candidate_id] ?? []).length > 0 && (
                     <div style={{ marginTop: '0.5rem' }}>
                       {(certs[s.candidate_id] ?? []).map((c) => (
                         <div key={c.id} className="mas-cert-mini">

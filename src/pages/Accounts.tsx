@@ -131,6 +131,9 @@ export default function Accounts() {
   const [breakdown, setBreakdown] = useState<Record<string, PayoutBreakdown | null>>({});
   const [targets, setTargets] = useState<Record<string, PayoutTarget[]>>({});
   const [vouchers, setVouchers] = useState<SessionVoucher[]>([]);
+  // When the raised-voucher register can't be read we do not know what has
+  // already been prepared, and must not imply that nothing has.
+  const [vouchersUnknown, setVouchersUnknown] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [rowOk, setRowOk] = useState<Record<string, string>>({});
@@ -146,7 +149,16 @@ export default function Accounts() {
   // Vouchers already raised, so a component is never prepared twice. Reuses the
   // register read rather than adding a per-session RPC.
   const fetchVouchers = useCallback(async () => {
-    const { data } = await supabase.rpc('list_payment_vouchers');
+    const { data, error } = await supabase.rpc('list_payment_vouchers');
+    if (error) {
+      // Failing open here would show every component as "not raised" and offer
+      // a Prepare button for payouts that already have a voucher — a duplicate
+      // disbursement. Fail closed instead.
+      setVouchersUnknown(true);
+      setVouchers([]);
+      return;
+    }
+    setVouchersUnknown(false);
     setVouchers(((data ?? []) as SessionVoucher[]).filter((v) => v.session_id != null));
   }, []);
 
@@ -156,7 +168,12 @@ export default function Accounts() {
   // Called on expand; the examiner_rm value pre-fills the amount field.
   const loadBreakdown = useCallback(async (sessionId: string) => {
     if (breakdown[sessionId] != null) return;
-    const { data } = await supabase.rpc('session_payout_breakdown', { _session_id: sessionId });
+    const { data, error } = await supabase.rpc('session_payout_breakdown', { _session_id: sessionId });
+    if (error) {
+      console.error('session_payout_breakdown failed:', error.message);
+      setBreakdown((m) => ({ ...m, [sessionId]: null }));
+      return;
+    }
     // session_payout_breakdown returns a single row; supabase-js gives an array.
     const row = Array.isArray(data) ? data[0] : data;
     if (row == null) {
@@ -173,7 +190,8 @@ export default function Accounts() {
     };
     setBreakdown((m) => ({ ...m, [sessionId]: b }));
 
-    const { data: t } = await supabase.rpc('get_session_payout_targets', { _session_id: sessionId });
+    const { data: t, error: tErr } = await supabase.rpc('get_session_payout_targets', { _session_id: sessionId });
+    if (tErr) { console.error('get_session_payout_targets failed:', tErr.message); return; }
     setTargets((m) => ({
       ...m,
       [sessionId]: ((t ?? []) as PayoutTarget[]).map((x) => ({ ...x, amount: Number(x.amount ?? 0) })),
@@ -261,6 +279,14 @@ export default function Accounts() {
           lives in <em>Billing · Invoices &amp; Payments</em>.
         </p>
       </header>
+
+      {vouchersUnknown && (
+        <p className="mas-status mas-status-bad">
+          The payment-voucher register couldn’t be read, so this page can’t tell
+          which payouts have already been raised. Preparing is disabled until it
+          loads — refresh to try again.
+        </p>
+      )}
 
       <div className="mas-admin-toolbar" style={{ gap: '0.6rem', flexWrap: 'wrap' }}>
         <button className="mas-btn-ghost" onClick={fetchSessions} disabled={load === 'loading'}>
@@ -390,11 +416,15 @@ export default function Accounts() {
                                         <td>
                                           {existing
                                             ? `${existing.voucher_no ?? 'Draft'} · ${pretty(existing.status)}`
-                                            : <span className="mas-cell-sub">not raised</span>}
+                                            : vouchersUnknown
+                                              ? <span className="mas-cell-sub">unknown</span>
+                                              : <span className="mas-cell-sub">not raised</span>}
                                         </td>
                                         <td className="mas-table-actioncol">
                                           {existing ? (
                                             <Link className="mas-link" to="/billing/vouchers">Open register</Link>
+                                          ) : vouchersUnknown ? (
+                                            <span className="mas-cell-sub">register unavailable</span>
                                           ) : t.payable ? (
                                             <button className="mas-link"
                                               onClick={() => prepareVoucher(s, t)}

@@ -20,7 +20,6 @@ import Instructors from './pages/Instructors';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Safeguarding from './pages/Safeguarding';
-import Directory from './pages/Directory';
 import Courses from './pages/Courses';
 import Verify from './pages/Verify';
 import SearchResults from './pages/SearchResults';
@@ -271,7 +270,7 @@ function PublicLayout() {
 
           <div className={`mas-navitem mas-has-menu${openSection === 'centre' ? ' is-open' : ''}`}>
             <div className="mas-navitem-top">
-              <NavLink to="/directory" className={({ isActive }) => `mas-menu-top${isActive ? ' is-active' : ''}`}>Find a centre</NavLink>
+              <NavLink to="/find-a-centre" className={({ isActive }) => `mas-menu-top${isActive ? ' is-active' : ''}`}>Find a centre</NavLink>
               <button
                 type="button"
                 className="mas-submenu-toggle"
@@ -283,7 +282,7 @@ function PublicLayout() {
               </button>
             </div>
             <div className="mas-submenu">
-              <NavLink to="/directory">Browse the directory</NavLink>
+              <NavLink to="/find-a-centre">Browse the directory</NavLink>
               <NavLink to="/for-centres">Become a partner centre</NavLink>
             </div>
           </div>
@@ -378,7 +377,7 @@ function PublicLayout() {
           <div>
             <h4>Programme</h4>
             <Link to="/the-programme">The programme</Link>
-            <Link to="/directory">Find a centre</Link>
+            <Link to="/find-a-centre">Find a centre</Link>
             <Link to="/instructors">Instructors</Link>
             <Link to="/courses">Courses</Link>
           </div>
@@ -878,7 +877,9 @@ export default function App() {
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/safeguarding" element={<Safeguarding />} />
-              <Route path="/directory" element={<Directory />} />
+              {/* Retired in favour of /find-a-centre. Kept as a redirect so
+                  existing links, bookmarks and indexed search results survive. */}
+              <Route path="/directory" element={<Navigate to="/find-a-centre" replace />} />
               <Route path="/courses" element={<Courses />} />
               <Route path="/verify" element={<Verify />} />
               <Route path="/verify/:serial" element={<Verify />} />
@@ -906,7 +907,7 @@ export default function App() {
               <Route path="/certificates/issue" element={<RequireRole roles={['chairperson', 'board_member', 'chief_examiner']}><CertificateIssuance /></RequireRole>} />
               <Route path="/certificates" element={<RequireRole roles={['examiner', 'chief_examiner', 'chairperson', 'board_member']}><Certificates /></RequireRole>} />
               <Route path="/admin/accounts" element={<RequireRole roles={['system_admin', 'finance_officer']}><Accounts /></RequireRole>} />
-              <Route path="/admin/centre-billing" element={<RequireRole roles={['chairperson', 'board_member', 'system_admin']}><CentreBilling /></RequireRole>} />
+              <Route path="/admin/centre-billing" element={<RequireRole roles={['chairperson', 'board_member', 'system_admin', 'finance_officer']}><CentreBilling /></RequireRole>} />
               <Route path="/billing/payments" element={<RequireRole roles={['finance_officer', 'system_admin', 'chairperson']}><BillingPayments /></RequireRole>} />
               <Route path="/admin/session-lifecycle" element={<RequireRole roles={['finance_officer', 'chairperson', 'system_admin', 'board_member', 'chief_examiner']}><SessionLifecycle /></RequireRole>} />
               <Route path="/billing/vouchers" element={<RequireRole roles={['finance_officer', 'finance_approver', 'system_admin', 'chairperson']}><PaymentVouchers /></RequireRole>} />
@@ -914,7 +915,7 @@ export default function App() {
               <Route path="/store" element={<RequireRole roles={['instructor', 'partner_center_admin', 'examiner']}><Store /></RequireRole>} />
               <Route path="/admin/store" element={<RequireRole roles={['system_admin', 'chairperson', 'board_member']}><StoreAdmin /></RequireRole>} />
               <Route path="/admin/store-products" element={<RequireRole roles={['system_admin', 'finance_officer']}><StoreProducts /></RequireRole>} />
-              <Route path="/admin/instructors" element={<RequireRole roles={['instructor_trainer', 'chairperson', 'board_member']}><InstructorOnboarding /></RequireRole>} />
+              <Route path="/admin/instructors" element={<RequireRole roles={['master_trainer', 'chairperson', 'board_member']}><InstructorOnboarding /></RequireRole>} />
               <Route path="/admin/instructor-blacklist" element={<RequireRole roles={['chairperson', 'board_member']}><InstructorBlacklist /></RequireRole>} />
               <Route path="/admin/courses" element={<RequireRole roles={['instructor_trainer', 'examiner_trainer', 'chairperson', 'board_member']}><CourseManagement /></RequireRole>} />
               <Route path="/admin/centres" element={<RequireRole roles={['chairperson', 'board_member']}><CentreManagement /></RequireRole>} />
@@ -925,7 +926,7 @@ export default function App() {
               <Route path="/admin/role-registry" element={<RequireRole roles={['system_admin']}><RoleRegistry /></RequireRole>} />
               <Route path="/registry/swimmers" element={<RequireRole roles={['instructor', 'partner_center_admin', 'chairperson', 'system_admin', 'finance_officer']}><SwimmerRegistry /></RequireRole>} />
               <Route path="/admin/audit-log" element={<RequireRole roles={['system_admin', 'chairperson']}><AuditLog /></RequireRole>} />
-              <Route path="/admin/memberships" element={<RequireRole roles={['chairperson', 'board_member']}><MembershipManagement /></RequireRole>} />
+              <Route path="/admin/memberships" element={<RequireRole roles={['chairperson', 'system_admin']}><MembershipManagement /></RequireRole>} />
 <Route path="/admin/staff" element={<Navigate to="/admin/settings" replace />} />
               <Route path="/admin/settings" element={<RequireRole roles={['system_admin']}><Settings /></RequireRole>} />
               <Route path="/admin/website/guides" element={<RequireRole roles={['system_admin']}><WebsiteGuides /></RequireRole>} />
@@ -938,9 +939,7 @@ export default function App() {
             <Route path="/claim-signup" element={<ClaimSignup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/set-password" element={<SetPassword />} />
-            <Route element={<Protected />}>
-              <Route path="/parent" element={<ParentDashboard />} />
-            </Route>
+            <Route path="/parent" element={<Protected><ParentDashboard /></Protected>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </ErrorBoundary>

@@ -1305,6 +1305,8 @@
 }
 .mas-app .mas-inst-body h3 { color: var(--mas-navy); font-size: 1rem; margin: 0; }
 .mas-app .mas-inst-meta { color: var(--mas-muted); font-size: 0.85rem; margin: 0.15rem 0 0; text-transform: none; }
+.mas-app .mas-inst-contact { color: var(--mas-muted); font-size: 0.82rem; margin: 0.3rem 0 0; text-transform: none; }
+.mas-app .mas-inst-contact a { color: var(--mas-teal-deep); }
 .mas-app .mas-inst-note { margin-top: 1.5rem; color: var(--mas-muted); font-size: 0.88rem; text-transform: none; }
 
 /* =====================================================================

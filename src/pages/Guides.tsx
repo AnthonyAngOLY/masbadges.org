@@ -20,12 +20,16 @@ interface GuideCardLite {
 export default function Guides() {
   const [cards, setCards] = useState<GuideCardLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.rpc('list_public_guides');
+      const { data, error } = await supabase.rpc('list_public_guides');
       if (cancelled) return;
+      // Without this, an unreachable database is indistinguishable from
+      // "nothing is published" — the visitor is told the wrong thing.
+      setLoadFailed(Boolean(error));
       const arr: GuideCardLite[] = Array.isArray(data) ? (data as GuideCardLite[]) : [];
       setCards(arr);
       setLoading(false);
@@ -49,7 +53,13 @@ export default function Guides() {
 
       {loading && <p className="mas-status">Loading…</p>}
 
-      {!loading && cards.length === 0 && (
+      {!loading && loadFailed && (
+        <p className="mas-status mas-status-bad">
+          Couldn’t load the guides just now. Please try again shortly.
+        </p>
+      )}
+
+      {!loading && !loadFailed && cards.length === 0 && (
         <p className="mas-status">No guides are currently published.</p>
       )}
 

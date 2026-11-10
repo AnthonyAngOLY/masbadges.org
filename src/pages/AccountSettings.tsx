@@ -40,8 +40,11 @@ export default function AccountSettings() {
       setFullName(data.full_name ?? '');
       setPhone(data.phone ?? '');
 
-      const { data: listed } = await supabase.rpc('get_my_instructor_listing');
+      const { data: listed, error: listedError } = await supabase.rpc('get_my_instructor_listing');
       if (cancelled) return;
+      // Without this the switch showed "Not listed" to an instructor who was in
+      // fact listed, because a failed call and a false flag looked identical.
+      if (listedError) setListingError(listedError.message);
       setListing(listed === true);
 
       setLoad('ready');
@@ -153,8 +156,8 @@ export default function AccountSettings() {
             </label>
             <p className="mas-field-note">
               When on, your name, state and centre appear in the public instructor
-              directory at masbadges.org. No contact details are shown. Turn it off to
-              remove yourself at any time.
+              directory at masbadges.org. Contact details are shown only if you add
+              them separately. Turn it off to remove yourself at any time.
             </p>
             {listingError && <p className="mas-status mas-status-bad">{listingError}</p>}
           </div>

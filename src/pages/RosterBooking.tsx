@@ -143,8 +143,9 @@ export default function RosterBooking() {
       setFeeMap(fm);
 
       if (isGovernance) {
-        const { data } = await supabase.rpc('list_instructors');
-        if (!cancelled) setInstructors((data ?? []) as InstructorOption[]);
+        const { data, error } = await supabase.rpc('list_instructors');
+        if (error) console.error('list_instructors failed:', error.message);
+        else if (!cancelled) setInstructors((data ?? []) as InstructorOption[]);
       }
     })();
     return () => { cancelled = true; };

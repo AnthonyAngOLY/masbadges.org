@@ -139,8 +139,10 @@ export default function PartnerApplications() {
 
   async function acknowledge(id: string) {
     setBusyId(id);
-    await supabase.rpc('acknowledge_partner_application', { _app_id: id });
-    setBusyId(null); load();
+    const { error } = await supabase.rpc('acknowledge_partner_application', { _app_id: id });
+    setBusyId(null);
+    if (error) { alert(error.message); return; }
+    load();
   }
 
   async function grant(id: string, grantTeach: boolean, grantAssess: boolean) {
@@ -159,10 +161,12 @@ export default function PartnerApplications() {
   async function deny(id: string) {
     if (!window.confirm('Deny this application? Neither teaching nor assessment will be granted.')) return;
     setBusyId(id);
-    await supabase.rpc('decide_partner_application_split', {
+    const { error } = await supabase.rpc('decide_partner_application_split', {
       _app_id: id, _grant_teach: false, _grant_assess: false, _note: notes[id] || null,
     });
-    setBusyId(null); load();
+    setBusyId(null);
+    if (error) { alert(error.message); return; }
+    load();
   }
 
   const newCount = useMemo(() => apps.filter((a) => a.status === 'submitted').length, [apps]);

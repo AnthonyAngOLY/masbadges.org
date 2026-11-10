@@ -3,26 +3,41 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import EditableText from '../components/EditableText';
 
-interface Row { id: string; full_name: string; state: string | null; centre_name: string | null; independent: boolean; }
+// Mirrors public.instructor_directory exactly. The key is profile_id, not id —
+// an earlier version of this type invented `id` and `independent`, so React
+// keys were undefined and every instructor rendered as "Partner centre".
+interface Row {
+  profile_id: string;
+  full_name: string;
+  state: string | null;
+  centre_name: string | null;
+  independent: boolean;
+  public_contact_email: string | null;
+  public_contact_phone: string | null;
+}
 
 export default function Instructors() {
   const [rows, setRows] = useState<Row[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [state, setState] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     let q = supabase.from('instructor_directory').select('*').order('full_name');
     if (state) q = q.eq('state', state);
-    const { data } = await q;
+    const { data, error } = await q;
+    if (error) { setLoadError(error.message); setRows([]); setLoading(false); return; }
+    setLoadError(null);
     setRows((data ?? []) as Row[]);
     setLoading(false);
   }, [state]);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.rpc('list_states');
+      const { data, error } = await supabase.rpc('list_states');
+      if (error) { console.error('list_states failed:', error.message); return; }
       setStates(((data ?? []) as { state: string }[]).map((x) => x.state));
     })();
   }, []);
@@ -48,7 +63,7 @@ export default function Instructors() {
           <strong>The instructor pathway</strong>
           <span className="mas-inst-cta-go">How to get certified →</span>
         </Link>
-        <Link to="/directory" className="mas-inst-cta-card">
+        <Link to="/find-a-centre" className="mas-inst-cta-card">
           <span className="mas-inst-cta-aud">Looking for lessons?</span>
           <strong>Find a recognised centre</strong>
           <span className="mas-inst-cta-go">Browse the directory →</span>
@@ -68,7 +83,12 @@ export default function Instructors() {
           <EditableText keyName="instructors.status.loading">Loading…</EditableText>
         </p>
       )}
-      {!loading && rows.length === 0 && (
+      {!loading && loadError && (
+        <p className="mas-status mas-status-bad">
+          Couldn’t load the directory just now. Please try again shortly.
+        </p>
+      )}
+      {!loading && !loadError && rows.length === 0 && (
         <div className="mas-alert is-info">
           <div className="mas-alert-body">
             <p className="mas-alert-title"><EditableText keyName="instructors.empty.title">No instructors are publicly listed yet.</EditableText></p>
@@ -85,7 +105,7 @@ export default function Instructors() {
       {rows.length > 0 && (
         <div className="mas-inst-grid">
           {rows.map((r) => (
-            <article key={r.id} className="mas-inst-card">
+            <article key={r.profile_id} className="mas-inst-card">
               <div className="mas-inst-avatar" aria-hidden="true">{(r.full_name || '?').charAt(0).toUpperCase()}</div>
               <div className="mas-inst-body">
                 <h3>{r.full_name}</h3>
@@ -93,6 +113,15 @@ export default function Instructors() {
                   {r.independent ? 'Independent instructor' : r.centre_name || 'Partner centre'}
                   {r.state ? ` · ${r.state}` : ''}
                 </p>
+                {(r.public_contact_email || r.public_contact_phone) && (
+                  <p className="mas-inst-contact">
+                    {r.public_contact_email && (
+                      <a href={`mailto:${r.public_contact_email}`}>{r.public_contact_email}</a>
+                    )}
+                    {r.public_contact_email && r.public_contact_phone && ' · '}
+                    {r.public_contact_phone}
+                  </p>
+                )}
               </div>
             </article>
           ))}
