@@ -18,6 +18,7 @@
 // system_admin can act — can_operate_store() gates every mutation server-side.
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/auth';
 import '../styles/admin.css';
 
 type OrderStatus = 'submitted' | 'invoiced' | 'paid' | 'shipped' | 'cancelled';
@@ -131,6 +132,12 @@ export default function StoreOrders() {
   const [paymentRef, setPaymentRef] = useState('');
   const [trackingRef, setTrackingRef] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+
+  // is_store_staff() lets governance SEE this queue, but can_operate_store()
+  // lets only finance_officer / system_admin act. Without this, a chairperson
+  // got live-looking buttons that every RPC then refused.
+  const { hasRole } = useAuth();
+  const canOperate = hasRole('finance_officer') || hasRole('system_admin');
 
   const [busy, setBusy] = useState<string | null>(null);
   const [rowMsg, setRowMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
@@ -306,12 +313,16 @@ export default function StoreOrders() {
                             <button className="mas-link" onClick={() => openDetail(o.order_id, 'view')}>
                               {isOpen ? 'Close' : 'View'}
                             </button>
-                            <button className="mas-link" onClick={() => actInvoice(o)} disabled={isBusy}>
-                              {isBusy ? '…' : 'Invoice'}
-                            </button>
-                            <button className="mas-link is-danger" onClick={() => openDetail(o.order_id, 'cancel')}>
-                              Cancel
-                            </button>
+                            {canOperate && (
+                              <>
+                                <button className="mas-link" onClick={() => actInvoice(o)} disabled={isBusy}>
+                                  {isBusy ? '…' : 'Invoice'}
+                                </button>
+                                <button className="mas-link is-danger" onClick={() => openDetail(o.order_id, 'cancel')}>
+                                  Cancel
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                         {o.status === 'invoiced' && (
@@ -319,12 +330,16 @@ export default function StoreOrders() {
                             <button className="mas-link" onClick={() => openDetail(o.order_id, 'view')}>
                               {isOpen ? 'Close' : 'View'}
                             </button>
-                            <button className="mas-link" onClick={() => openDetail(o.order_id, 'paid')}>
-                              Mark paid
-                            </button>
-                            <button className="mas-link is-danger" onClick={() => openDetail(o.order_id, 'cancel')}>
-                              Cancel
-                            </button>
+                            {canOperate && (
+                              <>
+                                <button className="mas-link" onClick={() => openDetail(o.order_id, 'paid')}>
+                                  Mark paid
+                                </button>
+                                <button className="mas-link is-danger" onClick={() => openDetail(o.order_id, 'cancel')}>
+                                  Cancel
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                         {o.status === 'paid' && (
@@ -332,9 +347,11 @@ export default function StoreOrders() {
                             <button className="mas-link" onClick={() => openDetail(o.order_id, 'view')}>
                               {isOpen ? 'Close' : 'View'}
                             </button>
-                            <button className="mas-link" onClick={() => openDetail(o.order_id, 'ship')}>
-                              Ship
-                            </button>
+                            {canOperate && (
+                              <button className="mas-link" onClick={() => openDetail(o.order_id, 'ship')}>
+                                Ship
+                              </button>
+                            )}
                           </>
                         )}
                         {(o.status === 'shipped' || o.status === 'cancelled') && (

@@ -71,7 +71,7 @@ import AuditLog from './pages/AuditLog';
 import ExaminerRegistry from './pages/ExaminerRegistry';
 import CentreBilling from './pages/CentreBilling';
 import Store from './pages/Store';
-import StoreAdmin from './pages/StoreOrders';
+import StoreOrders from './pages/StoreOrders';
 import StoreProducts from './pages/StoreProducts';
 import Settings from './pages/Settings';
 import MyResources from './pages/MyResources';
@@ -467,8 +467,17 @@ function Sidebar({
   const canExaminerRegistry = hasRole('chief_examiner');
   const canCentreBilling = hasRole('chairperson') || hasRole('board_member') || hasRole('system_admin');
   const canBuyStore = hasRole('instructor') || hasRole('partner_center_admin') || hasRole('examiner');
-  const canManageStore = hasRole('system_admin') || hasRole('chairperson') || hasRole('board_member');
-  const canStoreProducts = hasRole('system_admin') || hasRole('finance_officer');
+  // Store orders — mirrors is_store_staff(), the gate on list_store_orders().
+  // finance_officer (the MAS officer) is the role that actually works this
+  // queue; it was missing here, so the only operator could not open the page.
+  const canManageStore =
+    hasRole('finance_officer') || hasRole('system_admin') || hasRole('chairperson') ||
+    hasRole('board_member') || hasRole('chief_examiner');
+  // Store catalogue — mirrors can_manage_store(), the gate inside
+  // upsert_store_product(). finance_officer is NOT on it, so a save by one
+  // was always rejected server-side.
+  const canStoreProducts =
+    hasRole('system_admin') || hasRole('chairperson') || hasRole('board_member');
   const canSystemSettings = hasRole('system_admin');
 
   const isStaffOperator =
@@ -913,8 +922,8 @@ export default function App() {
               <Route path="/billing/vouchers" element={<RequireRole roles={['finance_officer', 'finance_approver', 'system_admin', 'chairperson']}><PaymentVouchers /></RequireRole>} />
               <Route path="/my-payouts" element={<RequireRole roles={['examiner', 'instructor', 'partner_center_admin', 'master_trainer', 'instructor_trainer', 'examiner_trainer', 'finance_officer', 'system_admin', 'chairperson']}><MyPayouts /></RequireRole>} />
               <Route path="/store" element={<RequireRole roles={['instructor', 'partner_center_admin', 'examiner']}><Store /></RequireRole>} />
-              <Route path="/admin/store" element={<RequireRole roles={['system_admin', 'chairperson', 'board_member']}><StoreAdmin /></RequireRole>} />
-              <Route path="/admin/store-products" element={<RequireRole roles={['system_admin', 'finance_officer']}><StoreProducts /></RequireRole>} />
+              <Route path="/admin/store" element={<RequireRole roles={['finance_officer', 'system_admin', 'chairperson', 'board_member', 'chief_examiner']}><StoreOrders /></RequireRole>} />
+              <Route path="/admin/store-products" element={<RequireRole roles={['system_admin', 'chairperson', 'board_member']}><StoreProducts /></RequireRole>} />
               <Route path="/admin/instructors" element={<RequireRole roles={['master_trainer', 'chairperson', 'board_member']}><InstructorOnboarding /></RequireRole>} />
               <Route path="/admin/instructor-blacklist" element={<RequireRole roles={['chairperson', 'board_member']}><InstructorBlacklist /></RequireRole>} />
               <Route path="/admin/courses" element={<RequireRole roles={['instructor_trainer', 'examiner_trainer', 'chairperson', 'board_member']}><CourseManagement /></RequireRole>} />
