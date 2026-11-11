@@ -385,8 +385,11 @@ vouchers only** — not amounts expected from `payout_schedule`.
    `inquiries` tables with matching `list_*` functions, and two overloads each of
    `cancel_store_order` and `register_candidate`. `mark_store_order_paid`,
    `fulfil_store_order` and `place_store_order` are the dead first generation of
-   the store RPCs — nothing in `src/` calls them since PR #101 and they can be
-   dropped whenever convenient.
+   the store RPCs — nothing in `src/` has called them since PR #101, and they
+   could never have worked anyway (they write `'placed'`/`'fulfilled'`, which
+   are not in `store_order_status`). `20261111090000_drop_dead_store_rpcs.sql`
+   drops all three, with a pre-flight caller scan to run first; **not yet
+   applied**.
 
 4. **The three public directories are distinct — do not merge them.**
    `/find-a-centre` is the venue/location finder for approved partner centres who
