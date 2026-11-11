@@ -382,9 +382,11 @@ vouchers only** — not amounts expected from `payout_schedule`.
    `/my-application` has no link from anywhere.
    `package-lock.json` is gitignored, so Netlify re-resolves every dependency
    range on each deploy. Live duplicates never cleaned up: `enquiries` AND
-   `inquiries` tables with matching `list_*` functions, `fo_mark_store_order_paid`
-   alongside `mark_store_order_paid`, and two overloads each of
-   `cancel_store_order` and `register_candidate`.
+   `inquiries` tables with matching `list_*` functions, and two overloads each of
+   `cancel_store_order` and `register_candidate`. `mark_store_order_paid`,
+   `fulfil_store_order` and `place_store_order` are the dead first generation of
+   the store RPCs — nothing in `src/` calls them since PR #101 and they can be
+   dropped whenever convenient.
 
 4. **The three public directories are distinct — do not merge them.**
    `/find-a-centre` is the venue/location finder for approved partner centres who
@@ -409,7 +411,35 @@ on a build with no Supabase env vars; a stalled connection hanging a page
 forever; the instructor opt-in toggle (migration applied 2026-11-10); four
 onboarding permission gates where the screen and the database disagreed; and
 anon access to the organisation's bank details; and `master_trainer` missing
-from `ROLE_LABELS`, which rendered Master Trainer as a raw enum value.
+from `ROLE_LABELS`, which rendered Master Trainer as a raw enum value; and the
+two store routes carrying each other's role lists, which locked the MAS officer
+out of the order queue and gave governance buttons every RPC refused.
+
+### The store module — read this before touching its gates
+
+The store is **two pages with two different gates**, and they are easy to swap
+(PR #101 fixed exactly that):
+
+| Page | Route roles | Live gate it must mirror |
+|---|---|---|
+| `/admin/store` (orders) | finance_officer · system_admin · chairperson · board_member · chief_examiner | `is_store_staff()` — gates `list_store_orders()` (who may SEE) |
+| — actions on that page | finance_officer · system_admin only | `can_operate_store()` — gates the `fo_*` lifecycle (who may ACT) |
+| `/admin/store-products` (catalogue) | system_admin · chairperson · board_member | `can_manage_store()` — gates `upsert_store_product()` |
+
+So governance can watch the order queue but not work it, and the MAS officer
+(`finance_officer`) works it but does not set prices. That separation is
+deliberate — do not "simplify" the three lists into one.
+
+The live order lifecycle is **submitted → invoiced → paid → shipped** (or
+cancelled), driven by `fo_invoice_store_order` → `fo_mark_store_order_paid` →
+`fo_ship_store_order`, plus `cancel_store_order(_order_id, _reason)`. There is
+no `'placed'` or `'fulfilled'` status — those were a first generation that
+never matched the `store_order_status` enum.
+
+`/admin/store` renders **`src/pages/StoreOrders.tsx`**. A second file,
+`pages/StoreAdmin.tsx`, sat unimported in the repo calling that dead generation;
+it was deleted in PR #101. If you go looking for "the store admin page", it is
+`StoreOrders.tsx`.
 
 **`/admin/settings` is deliberately `system_admin` only.** The Chairperson is
 authorised by `admin_create_account_with_password()` but cannot open that page,
