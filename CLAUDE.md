@@ -261,22 +261,26 @@ where n.nspname = 'public' and p.proname = 'the_function_name';
 ```
 
 **Verified against the live database on 2026-09-04** (Part 1 of the dump script,
-run against `masbadges-web`): **33 functions and 10 tables exist live with no
-creating migration in git.** Rerun `node scripts/check-schema-drift.mjs` for the
-subset reachable from `src/`; the full list below needs the live inventory,
-because a dozen of these are only ever called from inside another function.
+run against `masbadges-web`): **33 functions and 10 tables existed live with no
+creating migration in git.** All 33 and all 10 are now captured — see
+"Drift capture COMPLETE" below. Rerun `node scripts/check-schema-drift.mjs`
+for the subset reachable from `src/`.
 
-Untracked functions (33):
+The original inventory, kept for reference. Three are struck through: they were
+dropped on 2026-11-12 by `20261111090000_drop_dead_store_rpcs.sql` and no longer
+exist in the database.
+
+Untracked functions (33, of which 30 remain):
 `_session_reconciled` · `admin_create_account_with_password` · `can_bill_centres` ·
 `can_buy_store` · `can_manage_store` · `create_centre_invoice` ·
-`find_profile_by_email` · `fulfil_store_order` · `get_centre_payments` ·
+`find_profile_by_email` · ~~`fulfil_store_order`~~ · `get_centre_payments` ·
 `get_finance_settings` · `get_session_process_overview` · `get_store_order_items` ·
 `grant_centre_admin_on_signup` · `invite_centre_admin` · `lapse_expired_centres` ·
 `list_centre_billing` · `list_centre_fee_catalog` · `list_centres_due_renewal` ·
 `list_memberships` · `list_my_centre_admin_overview` ·
 `list_session_financial_flags` · `list_states` · `list_store_products` ·
-`log_account_event` · `mark_centre_invoice_paid` · `mark_store_order_paid` ·
-`place_store_order` · `preview_roster_swimmers` · `record_centre_payment` ·
+`log_account_event` · `mark_centre_invoice_paid` · ~~`mark_store_order_paid`~~ ·
+~~`place_store_order`~~ · `preview_roster_swimmers` · `record_centre_payment` ·
 `record_store_payment` · `reschedule_weather_session` · `upsert_store_product` ·
 `weather_hold_session`
 
@@ -293,18 +297,39 @@ Deployed-but-different: `list_billing_invoices` and `list_my_invoices` both have
 migrations, but the live versions return extra columns the files do not declare
 (`last_payment_*` and `session_status`). Never regenerate them from the files.
 
-**Captured 2026-11-10** into `supabase/diagnostics/captured_live_schema_2026-11-10.sql`:
-23 function definitions, 7 tables with constraints, indexes, policies and grants.
-Still uncaptured: 12 functions (including the `can_*` gates), 3 tables
-(`centre_payments`, `centre_invitations`, `store_payments`), the
-`store_order_status` enum and the live `instructor_directory` definition — the
-dump script's name arrays predated the Part 1 inventory and were never widened.
+**Drift capture COMPLETE** — nothing from the 2026-09-04 inventory is
+uncaptured. Two files hold it:
+
+- `supabase/diagnostics/captured_live_schema_2026-11-10.sql` — the first 22
+  function definitions and 7 tables, with constraints, indexes, policies, grants.
+- `supabase/diagnostics/captured_live_schema_part8.sql` — the remaining 11
+  functions (`_session_reconciled`, `can_buy_store`, `can_manage_store`,
+  `get_centre_payments`, `get_session_process_overview`, `get_store_order_items`,
+  `grant_centre_admin_on_signup`, `list_my_centre_admin_overview`,
+  `list_session_financial_flags`, `log_account_event`, `place_store_order`),
+  the last 3 tables (`centre_payments`, `centre_invitations`, `store_payments`),
+  **all 15 enums** including `store_order_status`, and the live definitions of
+  `instructor_directory`, `partner_center_directory`, `public_content_overrides`
+  and `public_courses`.
+
+These are diagnostics, not migrations. Promoting them to real migrations is
+still open, and the ordering constraint stands: nothing that calls
+`can_manage_store()` / `can_buy_store()` can be applied before those two exist.
 
 **Applied 2026-11-10:** `20261010100000_instructor_directory_opt_in.sql`, and
 `20261110120000_mas_officer_centre_billing.sql` which widened
 `can_bill_centres()` to include `finance_officer`. The deployed body before
 that change was chairperson / board_member / system_admin with
 `set search_path to ''`.
+
+**Applied 2026-11-12:** `20261111090000_drop_dead_store_rpcs.sql`, which
+dropped `place_store_order(jsonb,uuid,text,text)`, `mark_store_order_paid(uuid)`
+and `fulfil_store_order(uuid,text)` — the first generation of the store RPCs,
+superseded by `submit_store_order` and the `fo_*` lifecycle. They could never
+have worked: all three wrote `'placed'`/`'fulfilled'`, which are not values of
+`store_order_status`. The pre-flight caller scan came back clean (no live
+function referenced them) and the three `fo_*` functions were verified intact
+afterwards. Dropping them also closed three `anon`-reachable entry points.
 
 **Fixed 2026-11-10** by `20261110140000_revoke_anon_finance_settings.sql`,
 applied: `get_finance_settings()` was SECURITY DEFINER with no authorisation
@@ -355,23 +380,15 @@ vouchers only** — not amounts expected from `payout_schedule`.
 
 ## Known issues / next tasks
 
-1. **Schema drift — 22 of 33 functions and 7 of 10 tables captured.** Recorded
-   in `supabase/diagnostics/captured_live_schema_2026-11-10.sql`, plus
-   `can_bill_centres` in its own migration. **Exactly 11 functions remain**:
-   `_session_reconciled`, `can_buy_store`, `can_manage_store`,
-   `get_centre_payments`, `get_session_process_overview`, `get_store_order_items`,
-   `grant_centre_admin_on_signup`, `list_my_centre_admin_overview`,
-   `list_session_financial_flags`, `log_account_event`, `place_store_order`.
-   Plus 3 tables (`centre_payments`, `centre_invitations`, `store_payments`),
-   the `store_order_status` enum, and the live view definitions.
+1. **Schema drift — capture DONE, promotion to migrations still open.**
+   All 33 functions, all 10 tables, all 15 enums and the 4 views are recorded
+   across `captured_live_schema_2026-11-10.sql` and `captured_live_schema_part8.sql`
+   in `supabase/diagnostics/` (plus `can_bill_centres` in its own migration).
+   What remains is turning those diagnostics into real, ordered migration files.
+   The one hard ordering rule: `can_manage_store()` and `can_buy_store()` must
+   be created first, because almost everything else calls them.
    (`is_store_staff`, `next_store_order_no`, `can_approve_vouchers` and
-   `can_prepare_vouchers` ARE in git — an earlier note here said otherwise.)
-
-   `supabase/diagnostics/part8a_functions.sql`, `part8b_tables.sql` and
-   `part8c_enums_views.sql` collect all of it — one SELECT and one result set
-   each, verified against PostgreSQL 16. Once their output is in, the capture
-   file can be promoted to real migrations: nothing in it can be applied until
-   `can_manage_store` / `can_buy_store` exist, because everything calls them.
+   `can_prepare_vouchers` were already in git — an earlier note here said otherwise.)
 2. **Instructor directory — DONE, applied 2026-11-10.** Consent column,
    consent-gated view and the three RPCs are live. The opt-in toggle on
    `/account` works. `/instructors` shows only instructors who opted in, so it
@@ -383,13 +400,9 @@ vouchers only** — not amounts expected from `payout_schedule`.
    `package-lock.json` is gitignored, so Netlify re-resolves every dependency
    range on each deploy. Live duplicates never cleaned up: `enquiries` AND
    `inquiries` tables with matching `list_*` functions, and two overloads each of
-   `cancel_store_order` and `register_candidate`. `mark_store_order_paid`,
-   `fulfil_store_order` and `place_store_order` are the dead first generation of
-   the store RPCs — nothing in `src/` has called them since PR #101, and they
-   could never have worked anyway (they write `'placed'`/`'fulfilled'`, which
-   are not in `store_order_status`). `20261111090000_drop_dead_store_rpcs.sql`
-   drops all three, with a pre-flight caller scan to run first; **not yet
-   applied**.
+   `cancel_store_order` and `register_candidate`. (`mark_store_order_paid`,
+   `fulfil_store_order` and `place_store_order` were the dead first generation
+   of the store RPCs — **dropped 2026-11-12**, see below.)
 
 4. **The three public directories are distinct — do not merge them.**
    `/find-a-centre` is the venue/location finder for approved partner centres who
@@ -437,7 +450,8 @@ The live order lifecycle is **submitted → invoiced → paid → shipped** (or
 cancelled), driven by `fo_invoice_store_order` → `fo_mark_store_order_paid` →
 `fo_ship_store_order`, plus `cancel_store_order(_order_id, _reason)`. There is
 no `'placed'` or `'fulfilled'` status — those were a first generation that
-never matched the `store_order_status` enum.
+never matched the `store_order_status` enum, and whose three functions were
+dropped from the database on 2026-11-12.
 
 `/admin/store` renders **`src/pages/StoreOrders.tsx`**. A second file,
 `pages/StoreAdmin.tsx`, sat unimported in the repo calling that dead generation;
