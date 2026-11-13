@@ -341,6 +341,28 @@ and `list_store_products()`, and `get_finance_settings` carries an
 `auth.uid() is not null` predicate so a restored grant cannot reopen it.
 Verified: `anon` false, `authenticated` and `service_role` true on all three.
 
+**RLS off on two counter tables — `20261113090000_rls_on_counter_tables.sql`,
+NOT YET APPLIED.** Supabase Security Advisor raised `rls_disabled_in_public`
+on `masbadges-web`. `invoice_counter` and `receipt_counter` (June 2026) were
+created with no RLS and no policy; like everything else they are granted to
+`anon`, so the anon key in the public bundle could read **and write** them.
+Rolling a counter backwards hands the next assessment invoice or receipt a
+serial already in use. `voucher_counter` (August 2026) got RLS plus a deny-all
+policy at birth — the migration brings the two older ones to that standard.
+Safe because nothing in `src/` touches them and both are written only from
+SECURITY DEFINER functions, which run as the table owner and bypass RLS
+(verified on PG 16: as `anon` a definer allocator still increments, a direct
+`select` returns nothing). The file's step 1 is a live scan for every RLS-off
+table in `public` — run it first, since the folder is not the live schema.
+
+**New tables need an explicit GRANT (Supabase, from 2026-10-30).** Supabase no
+longer auto-grants Data API access to tables newly created in `public`.
+Existing tables keep their grants and are unaffected. Any migration that
+creates a table from now on must `grant` to `authenticated` (and `anon` only
+if the public site genuinely needs it) or PostgREST returns "permission
+denied". Prefer keeping direct table access shut and exposing data through a
+security-definer RPC, as this codebase already does.
+
 **The wider pattern remains.** Every other function in this database is still
 granted to `anon` and `PUBLIC`. The other 20 in the capture gate properly in
 their own bodies, so this is belt-and-braces rather than a hole — but any NEW
