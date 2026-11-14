@@ -341,19 +341,26 @@ and `list_store_products()`, and `get_finance_settings` carries an
 `auth.uid() is not null` predicate so a restored grant cannot reopen it.
 Verified: `anon` false, `authenticated` and `service_role` true on all three.
 
-**RLS off on two counter tables — `20261113090000_rls_on_counter_tables.sql`,
-NOT YET APPLIED.** Supabase Security Advisor raised `rls_disabled_in_public`
-on `masbadges-web`. `invoice_counter` and `receipt_counter` (June 2026) were
-created with no RLS and no policy; like everything else they are granted to
-`anon`, so the anon key in the public bundle could read **and write** them.
-Rolling a counter backwards hands the next assessment invoice or receipt a
-serial already in use. `voucher_counter` (August 2026) got RLS plus a deny-all
-policy at birth — the migration brings the two older ones to that standard.
-Safe because nothing in `src/` touches them and both are written only from
-SECURITY DEFINER functions, which run as the table owner and bypass RLS
-(verified on PG 16: as `anon` a definer allocator still increments, a direct
-`select` returns nothing). The file's step 1 is a live scan for every RLS-off
-table in `public` — run it first, since the folder is not the live schema.
+**Fixed 2026-11-14** by `20261113090000_rls_on_counter_tables.sql`, applied:
+Supabase Security Advisor raised `rls_disabled_in_public` on `masbadges-web`.
+`invoice_counter` and `receipt_counter` (June 2026) were created with no RLS
+and no policy; like everything else they are granted to `anon`, so the anon
+key in the public bundle could read **and write** them — the live scan
+confirmed `select, insert, update, delete` and zero policies on both. Rolling
+a counter backwards hands the next assessment invoice or receipt a serial
+already in use. `voucher_counter` (August 2026) had RLS plus a deny-all policy
+from birth; the two older counters now match it. Verified after applying: all
+three report `rls = on` with 1 policy each.
+
+Safe because nothing in `src/` touches these tables and both are written only
+from SECURITY DEFINER functions, which run as the table owner and bypass RLS
+(proven on PG 16: as `anon` a definer allocator still incremented 41 -> 42
+while a direct `select` returned 0 rows).
+
+**The scan in that file is worth rerunning** whenever the advisor fires again
+— it lists every RLS-off table in `public` ranked by whether `anon` can reach
+it. On 2026-11-14 it returned those two and nothing else, so no hand-made
+table in the SQL editor had been left open.
 
 **New tables need an explicit GRANT (Supabase, from 2026-10-30).** Supabase no
 longer auto-grants Data API access to tables newly created in `public`.
