@@ -13,22 +13,108 @@ interface CatalogRow {
 }
 interface Warning { profile_id: string; person: string; code: string; message: string; }
 
-// READ-ONLY capability map — reflects what the RLS policies + has_role() actually
-// grant. Maintained in code alongside the migrations; editing the catalog (left)
-// never changes these. This is the honest "what this role can really do".
+// READ-ONLY capability map — the honest "what this role can really do".
+//
+// MAINTENANCE: this map is per-role and must agree with the route table in
+// App.tsx and the gate functions in the database. It had drifted badly and was
+// corrected in full; when you change a RequireRole list, change the matching
+// entry here in the same commit.
+//
+// Corrections made, each verified against the route table:
+//   · instructor_trainer claimed it could "Invite / onboard instructors".
+//     It cannot — /admin/instructors is master_trainer / chairperson /
+//     board_member. The claim belonged to master_trainer.
+//   · master_trainer had NO entry at all, despite being the role that
+//     actually onboards instructors.
+//   · examiner claimed "Receive assessment invitations" and "Issue
+//     certificates (self-stamped)". Both are obsolete: examiners now self-pick
+//     from an open pool (Invitations.tsx), and certificate issuance is
+//     automatic on examiner submit (CertificateIssuance.tsx).
+//   · board_member claimed memberships. /admin/memberships is chairperson and
+//     system_admin only.
+//
+// ORG NOTE: MAS appoints ONE person to master_trainer + instructor_trainer +
+// examiner_trainer. The three entries below are kept separate because the map
+// documents roles, not people, and each grants a different set.
 const CAPABILITIES: Record<string, string[]> = {
-  chairperson: ['Approve / deny centre applications', 'Manage centres & memberships', 'Assessment oversight', 'Set centre billing (Step 9)', 'All governance reads'],
-  board_member: ['Manage centres & memberships', 'Approve / deny centre applications', 'Assessment oversight'],
-  chief_examiner: ['Examiner registry & invitations (UIDs)', 'Assessment oversight', 'Grade assessments', 'Certificate registry'],
-  examiner_trainer: ['Manage & schedule courses'],
-  instructor_trainer: ['Invite / onboard instructors', 'Manage & schedule courses'],
-  coaching_panel: ['Advisory; governance reads'],
-  examiner: ['Receive assessment invitations', 'Conduct & grade assessments', 'Issue certificates (self-stamped)', 'Blocked from assessing own-registered candidates'],
-  instructor: ['Register candidates', 'Schedule assessments', 'Register / represent an appointed centre', 'Print claim slips', 'View own invoices'],
-  partner_center_admin: ['Administer own centre (contact details)', 'View centre invoices', 'Scoped to a single centre'],
-  finance_officer: ['Record payments in against invoices', 'Prepare payment vouchers (money out)', 'Pay approved vouchers', 'Cannot approve a voucher they prepared'],
-  finance_approver: ['Approve payment vouchers prepared by someone else', 'Approval allocates the voucher number', 'No payment or preparation rights of its own'],
-  system_admin: ['Full administrative access (role wildcard)', 'Accounts & invoicing', 'Instructor & course administration', 'All queues', 'Should remain non-operational'],
+  chairperson: [
+    'Approve / deny centre applications',
+    'Manage centres; grant & revoke memberships',
+    'Set centre billing',
+    'Approve payment vouchers — but never one they prepared',
+    'Assessment oversight & grading',
+    'Audit log; all governance reads',
+  ],
+  board_member: [
+    'Approve / deny centre applications',
+    'Manage centres; instructor blacklist',
+    'Assessment oversight & grading',
+    'NOT memberships, payments or the audit log — those are chairperson-only',
+  ],
+  chief_examiner: [
+    'Examiner registry: onboards examiners, issues UIDs, revokes',
+    'Carries examiner welfare',
+    'Grade assessments; certificate registry',
+    'Session lifecycle oversight',
+  ],
+  master_trainer: [
+    'Onboards & administers instructors (invite, list, revoke)',
+    'Carries instructor welfare',
+    'Trains BOTH instructors and examiners — delivers both certification courses',
+    'Session tracker across the programme; own payouts',
+    'Course scheduling comes from instructor_trainer / examiner_trainer, not this role',
+  ],
+  instructor_trainer: [
+    'Manage & schedule courses',
+    'Handle enquiries',
+    'Does NOT onboard instructors — that is master_trainer',
+  ],
+  examiner_trainer: [
+    'Manage & schedule courses',
+  ],
+  coaching_panel: [
+    'Ratifies examiner appointments — a governance act, performed off-platform',
+    'Grants NO portal screens at all',
+  ],
+  examiner: [
+    'Picks up open sessions from the pool — not invited to a named session',
+    'Conduct & grade assessments; declare a weather hold',
+    'Certificate registry (read) — issuance is automatic on submit, not self-stamped',
+    'Blocked in data from assessing candidates they instruct',
+    'Sees no fee or payment value anywhere on the grading screen',
+  ],
+  instructor: [
+    'Register candidates; print claim slips',
+    'Book assessment sessions — the roster locks at creation',
+    'Register / represent an appointed centre',
+    'View own invoices; opt in to the public instructor directory',
+  ],
+  partner_center_admin: [
+    'Administer own centre (contact details, public listing)',
+    'View centre invoices',
+    'Scoped to a single centre',
+  ],
+  finance_officer: [
+    'The MAS officer — a conduit for money, not the authority over it',
+    'Record payments in; this is what releases a session to the examiner pool',
+    'Centre recognition billing',
+    'Prepare payment vouchers; pay them once approved',
+    'Work the store order queue (invoice → paid → shipped)',
+    'Cannot approve a voucher they prepared — enforced in the database',
+    'Cannot set store prices — the catalogue belongs to governance',
+  ],
+  finance_approver: [
+    'NOT APPOINTED — MAS runs a single Finance Officer',
+    'Authorisation and financial safeguards fall back to MAS-side policy, off-platform',
+    'If ever granted: approves vouchers prepared by someone else, and approval allocates the voucher number',
+  ],
+  system_admin: [
+    'Full administrative access (role wildcard)',
+    'Account provisioning, system settings, website content',
+    'Role registry & audit log',
+    'The wildcard does NOT exempt it from voucher separation of duties',
+    'Should remain non-operational',
+  ],
 };
 
 export default function RoleRegistry() {
