@@ -487,6 +487,46 @@ dropped from the database on 2026-11-12.
 it was deleted in PR #101. If you go looking for "the store admin page", it is
 `StoreOrders.tsx`.
 
+### Who onboards whom — and the three-roles-one-person rule
+
+**The Master Trainer IS also the Instructor Trainer and the Examiner Trainer.**
+MAS appoints one person to all three (`master_trainer`, `instructor_trainer`,
+`examiner_trainer`); there are no separate trainer posts. That person
+**trains everybody** — both certification courses, instructors and examiners
+alike.
+
+**Onboarding is split, and the split is enforced by the route table:**
+
+| Act | Who | Screen / RPC |
+|---|---|---|
+| Train instructors AND examiners | Master Trainer | both courses, off-platform |
+| **Onboard** an instructor + welfare | **Master Trainer** | `/admin/instructors` → `invite_instructor` |
+| **Onboard** an examiner + welfare | **Chief Examiner** | `/assessments/examiners` → `onboard_examiner` |
+
+Training someone and admitting them to the register are two different acts by
+two different offices. `/admin/courses` is gated to `instructor_trainer` /
+`examiner_trainer` / chairperson / board_member — **not** `master_trainer`, so
+the one person reaches it through their trainer memberships, not the master
+one.
+
+**MAS finance is one post, and it is a conduit.** MAS appoints a single
+**Finance Officer**; `finance_approver` exists in the enum but **nobody holds
+it**. Requirements for money in and out are set by the MAS Officer and
+approval sits with the **MAS Treasurer** (reported, not yet confirmed) — i.e.
+it falls back to MAS-side policy, off-platform. The database still enforces
+`approve_payment_voucher`'s separation of duties (the preparer can never
+approve, and the `system_admin` wildcard buys no exemption), so in practice
+only the Chairperson can approve inside the portal. Decide whether to retire
+`finance_approver` or leave it dormant.
+
+**`src/pages/RoleRegistry.tsx` holds a per-role `CAPABILITIES` map that must
+agree with the route table.** It had drifted badly and was corrected in full
+on 2026-11-16: `instructor_trainer` falsely claimed instructor onboarding,
+`master_trainer` was absent entirely, `examiner` claimed named-session
+invitations and self-stamped certificates (both obsolete), and `board_member`
+claimed memberships. **When you change a `RequireRole` list, change that map
+in the same commit.**
+
 **`/admin/settings` is deliberately `system_admin` only.** The Chairperson is
 authorised by `admin_create_account_with_password()` but cannot open that page,
 and that is NOT a fifth gate mismatch. The page bundles account provisioning
