@@ -4,6 +4,19 @@ The source of record for the programme's governing documents. Everything in
 `CLAUDE.md`'s "Governance facts" section is a **summary** of these files — when
 the two disagree, these win, and `CLAUDE.md` should be corrected.
 
+> ## ⚠️ Read `issued/` first — it is the baseline
+>
+> **`governance/issued/` holds the designed, issued PDFs. From 2026-11-26 those
+> are authoritative.** The `.docx` and `.md` files in this folder are the working
+> drafts they were built from; the drafts were taken out to a design tool,
+> **edited there**, and returned as PDFs. Where a draft and an issued PDF
+> disagree, **the PDF is right and the draft is stale**.
+>
+> Four of the eight documents are issued so far (`002-1`, `002-2`, `002-F`,
+> `003`). The rest are still represented only by drafts here. See
+> `governance/issued/README.md` for the numbering scheme, the 1a / 1b rule for
+> paired documents, and what is still awaited.
+
 **Audit date: 2026-11-26.** Editions below are what each document declares in its
 own header, read from the file, not inferred from its filename.
 
@@ -41,18 +54,21 @@ git mv governance/OLD_DOC.* governance/archive/
 
 ---
 
-## In force
+## Working drafts (superseded where an issued PDF exists)
+
+An **Issued** row below means `governance/issued/` carries the authoritative
+version and the draft here is historical. Do not quote a superseded draft.
 
 | Document | Declares | Files | Custodian |
 |---|---|---|---|
 | **BADGES System Manual** | `Edition 2.3 · 7 July 2026` ⚠️ **see discrepancy** | `MAS_BADGES_Manual_Edition_2_4` · `.docx` `.pdf` `.md` | BADGES Chairperson; technical clauses co-owned by the Coaching Panel |
 | **7-Level Syllabus** | `Version 1.0` | `MAS_BADGES_7_Level_Syllabus` · `.docx` `.md` | MAS Coaching & Technical Board |
 | **Assessment System Handbook** | `Version 1.0` | `MAS_BADGES_Assessment_System_Handbook` · `.docx` `.md` | Chief Examiner |
-| **Teaching System Handbook** | `Version 1.0` | `MAS_BADGES_Teaching_System_Handbook` · `.docx` `.md` | Coaching & Technical Board |
+| **Teaching System Handbook** ⬅ **ISSUED as `003`** | `Version 1.0` | draft: `MAS_BADGES_Teaching_System_Handbook` · `.docx` `.md` | Coaching & Technical Board + Master Trainer |
 | **Instructor Certification Course Guide** | `Version 1.0` | `MAS_BADGES_Instructor_Certification_Course_Guide` · `.docx` `.md` | Coaching & Technical Board |
 | **Instructor Certification Course Notes Booklet** | *no version declared* | `MAS_BADGES_Instructor_Certification_Course_Notes_Booklet` · `.docx` `.md` | — |
-| **Examiner Certification Course Guide** | `Version 1.0` | `MAS_BADGES_Examiner_Certification_Course_Guide` · `.docx` `.md` | Chief Examiner |
-| **Examiner Certification Course Notes Booklet** | *no version declared* | `MAS_BADGES_Examiner_Certification_Course_Notes_Booklet` · `.docx` `.md` | — |
+| **Examiner Certification Course Guide** ⬅ **ISSUED as `002-1`** | `Version 1.0` | draft: `MAS_BADGES_Examiner_Certification_Course_Guide` · `.docx` `.md` | Delivered by Master Trainer, with the Chief Examiner |
+| **Examiner Certification Course Notes Booklet** ⬅ **ISSUED as `002-2`** | *draft declared none; issued as Version 1b of `002-1`* | draft: `MAS_BADGES_Examiner_Certification_Course_Notes_Booklet` · `.docx` `.md` | — |
 
 ### Not a governance document
 
@@ -103,9 +119,10 @@ register. Edition 2.0 is already archived.
 
 ## Known gaps
 
-- **No PDF of the 7-Level Syllabus or of either Course Notes Booklet.** The only
-  PDF in the repository is the Manual. Searched the full history on every branch:
-  a designed 7 Levels booklet has never been committed here.
+- **The 7-Level Syllabus has no issued PDF yet.** Nor do the System Manual, the
+  Instructor Course pair or the Assessment System Handbook — four of the eight
+  are still drafts only. (The Examiner Notes Booklet *is* now issued, as
+  `002-2`.)
 - **Two Course Notes Booklets declare no version at all.** They cannot be placed
   on an edition timeline until they do.
 - **The Syllabus numbering scheme is inconsistent with its own archived
