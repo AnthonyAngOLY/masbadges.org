@@ -125,7 +125,13 @@ src/
              mas-table family) · shell.css 272 (portal shell) · public.css 160
              (public base) · home.css 108 · site.css 96 · auth.css 71
   pages/     70 files. See the route table in App.tsx (~lines 865–945).
-governance/    THE SOURCE OF RECORD for the programme's governing documents —
+governance/issued/  **THE BASELINE** — the designed, issued PDFs, authoritative
+               from 2026-11-26. Numbered (002-1 Guide = Version 1a, 002-2 Booklet
+               = Version 1b, 002-F Forms, 003 Handbook). Read issued/README.md for
+               the numbering and what is still awaited. Where an issued PDF and a
+               .docx/.md draft disagree, THE PDF WINS — the drafts were edited in
+               a design tool and returned as these PDFs.
+governance/    Working drafts behind the issued set, plus the register —
                the Manual, the 7-Level Syllabus, the two System Handbooks and the
                four Course Guides/Booklets, each as .docx + a .md twin, with
                superseded editions in governance/archive/. **Read
