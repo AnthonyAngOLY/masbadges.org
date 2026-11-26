@@ -125,6 +125,13 @@ src/
              mas-table family) · shell.css 272 (portal shell) · public.css 160
              (public base) · home.css 108 · site.css 96 · auth.css 71
   pages/     70 files. See the route table in App.tsx (~lines 865–945).
+governance/    THE SOURCE OF RECORD for the programme's governing documents —
+               the Manual, the 7-Level Syllabus, the two System Handbooks and the
+               four Course Guides/Booklets, each as .docx + a .md twin, with
+               superseded editions in governance/archive/. **Read
+               governance/README.md first**: it is the edition register and says
+               which file is in force. The "Governance facts" section below is a
+               SUMMARY of these files — when they disagree, the documents win.
 scripts/generate-sitemap.mjs   runs on `prebuild` → public/sitemap.xml
 public/badges/level-1..7.png   official badge art (512px, transparent)
 supabase/migrations/*.sql      119 files, applied BY HAND — and NOT a complete
@@ -545,6 +552,12 @@ importing that file.
 ---
 
 ## Governance facts (use these; do not invent)
+
+**These are a summary of `governance/`, not the source.** Before relying on a
+fee, a timing or a rule for anything that ships, open the actual document and
+check `governance/README.md` for which edition is in force. Note one unresolved
+item recorded there: two Manual files both declare Edition 2.3 with differing
+content, so "the current Manual" is not yet settled.
 
 Seven levels in order, no skipping. Every assessment booking is by/under a
 certified instructor (no anonymous centre booking). Independent-examiner firewall:
